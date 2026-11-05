@@ -63,6 +63,7 @@ crashlytics-build.properties
 .DS_Store
 Thumbs.db
 .vs/
+.vsconfig
 .idea/
 .vscode/*
 !.vscode/settings.json
