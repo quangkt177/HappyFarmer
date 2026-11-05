@@ -1,9 +1,12 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using HappyFarmer.Inventory;
+using HappyFarmer.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.Tilemaps;
@@ -27,10 +30,20 @@ namespace HappyFarmer.EditorTools
 
         private static void OnEditorReady()
         {
+            if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+
             if (!File.Exists(ScenePath))
             {
                 Debug.Log("[HappyFarmer] First-time setup: Building Farm Map scene...");
                 BuildEverything();
+                return;
+            }
+
+            var activeScene = SceneManager.GetActiveScene();
+            if (activeScene.path == ScenePath && Object.FindObjectOfType<InventoryUI>() == null)
+            {
+                Debug.Log("[HappyFarmer] Adding Inventory System & UI to FarmMap scene...");
+                SetupInventoryInCurrentScene();
             }
         }
 
@@ -70,6 +83,20 @@ namespace HappyFarmer.EditorTools
             var sprites = LoadAllSprites();
             var tiles = LoadAllTiles(sprites);
             CreateTilePalette(tiles, true);
+        }
+
+        [MenuItem("Happy Farmer/4. Setup Inventory UI in Current Scene", false, 4)]
+        public static void SetupInventoryInCurrentScene()
+        {
+            var sprites = LoadAllSprites();
+            BuildInventorySystem(sprites);
+            var scene = SceneManager.GetActiveScene();
+            if (scene.IsValid())
+            {
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+            }
+            Debug.Log("[HappyFarmer] SUCCESS: Inventory UI & Manager configured in scene.");
         }
 
         private static void EnsureFolder(string path)
@@ -282,6 +309,9 @@ namespace HappyFarmer.EditorTools
 
             // 4. Main Camera
             BuildCamera();
+
+            // 5. Inventory System & UI
+            BuildInventorySystem(sprites);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
         }
@@ -588,6 +618,32 @@ namespace HappyFarmer.EditorTools
 
             var follow = cameraObj.AddComponent<HappyFarmer.Gameplay.CameraFollow>();
             follow.target = GameObject.Find("Player")?.transform;
+        }
+
+        private static void BuildInventorySystem(Dictionary<string, Sprite> sprites)
+        {
+            var manager = Object.FindObjectOfType<InventoryManager>();
+            if (manager == null)
+            {
+                var managerObj = new GameObject("InventoryManager");
+                manager = managerObj.AddComponent<InventoryManager>();
+            }
+            if (sprites != null)
+            {
+                manager.SetPreloadedSprites(sprites.Values.ToList());
+            }
+
+            if (Object.FindObjectOfType<EventSystem>() == null)
+            {
+                var esObj = new GameObject("EventSystem");
+                esObj.AddComponent<EventSystem>();
+                esObj.AddComponent<StandaloneInputModule>();
+            }
+
+            if (Object.FindObjectOfType<InventoryUI>() == null)
+            {
+                InventoryBootstrap.CreateInventoryCanvas();
+            }
         }
     }
 }
