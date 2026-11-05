@@ -27,9 +27,10 @@ namespace HappyFarmer.EditorTools
 
         private static void OnEditorReady()
         {
+            // Auto rebuild if scene not created
             if (!File.Exists(ScenePath))
             {
-                Debug.Log("[HappyFarmer] First-time setup: Building Farm Map scene...");
+                Debug.Log("[HappyFarmer] Building Farm Map scene...");
                 BuildEverything();
             }
         }
@@ -227,7 +228,7 @@ namespace HappyFarmer.EditorTools
             var gridObject = new GameObject("Grid");
             gridObject.AddComponent<Grid>();
 
-            // Ground Tilemap
+            // Ground Tilemap: Fill well beyond borders with grass
             var groundObj = new GameObject("Ground");
             groundObj.transform.SetParent(gridObject.transform, false);
             var groundTilemap = groundObj.AddComponent<Tilemap>();
@@ -237,9 +238,10 @@ namespace HappyFarmer.EditorTools
 
             if (tiles.TryGetValue("grass", out var grassTile))
             {
-                for (var x = 0; x < MapWidth; x++)
+                // Fill -15 to +15 beyond borders so screen never sees background void
+                for (var x = -15; x < MapWidth + 15; x++)
                 {
-                    for (var y = 0; y < MapHeight; y++)
+                    for (var y = -15; y < MapHeight + 15; y++)
                     {
                         groundTilemap.SetTile(new Vector3Int(x, y, 0), grassTile);
                     }
@@ -326,10 +328,11 @@ namespace HappyFarmer.EditorTools
         {
             var bounds = new GameObject("Boundaries");
             bounds.transform.SetParent(parent, false);
-            AddWall(bounds, new Vector2(MapWidth / 2f, 0.5f), new Vector2(MapWidth, 3f));
-            AddWall(bounds, new Vector2(MapWidth / 2f, MapHeight - 0.5f), new Vector2(MapWidth, 3f));
-            AddWall(bounds, new Vector2(0.5f, MapHeight / 2f), new Vector2(3f, MapHeight));
-            AddWall(bounds, new Vector2(MapWidth - 0.5f, MapHeight / 2f), new Vector2(3f, MapHeight));
+            // Overlap boundary walls so corners are completely sealed
+            AddWall(bounds, new Vector2(MapWidth / 2f, 0.5f), new Vector2(MapWidth + 10f, 3f));
+            AddWall(bounds, new Vector2(MapWidth / 2f, MapHeight - 0.5f), new Vector2(MapWidth + 10f, 3f));
+            AddWall(bounds, new Vector2(0.5f, MapHeight / 2f), new Vector2(3f, MapHeight + 10f));
+            AddWall(bounds, new Vector2(MapWidth - 0.5f, MapHeight / 2f), new Vector2(3f, MapHeight + 10f));
         }
 
         private static void AddWall(GameObject owner, Vector2 center, Vector2 size)
@@ -345,17 +348,23 @@ namespace HappyFarmer.EditorTools
             scenery.SetParent(parent, false);
 
             var random = new System.Random(5);
+            // Top and bottom borders
             for (var x = 0; x < MapWidth + 1; x += 2)
             {
                 Prop(scenery, sprites, random.Next(3) == 0 ? "pine" : "tree", x + 0.5f, 19.4f + (float)random.NextDouble() * 0.6f, false);
                 Prop(scenery, sprites, random.Next(3) == 0 ? "pine" : "tree", x + 0.5f, -0.4f + (float)random.NextDouble() * 0.8f, false);
             }
 
-            for (var y = 1; y < MapHeight - 2; y += 2)
+            // Left and right borders
+            for (var y = 1; y < MapHeight; y += 2)
             {
                 Prop(scenery, sprites, random.Next(3) == 0 ? "pine" : "tree", 0.6f, y + 0.4f, false);
                 Prop(scenery, sprites, random.Next(3) == 0 ? "pine" : "tree", MapWidth - 0.6f, y + 0.4f, false);
             }
+
+            // Seal top-right corner specifically
+            Prop(scenery, sprites, "tree", MapWidth - 0.6f, 19.8f, false);
+            Prop(scenery, sprites, "pine", MapWidth - 0.6f, 21.2f, false);
 
             // Floor flower/grass details
             for (var i = 0; i < 90; i++)
