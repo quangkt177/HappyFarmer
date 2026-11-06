@@ -185,7 +185,6 @@ namespace HappyFarmer.EditorTools
             // 1. Idle Blend Tree State
             BlendTree idleBlendTree;
             var idleState = controller.CreateBlendTreeInController("Idle", out idleBlendTree);
-            idleState.position = new Vector3(250, 50, 0);
             idleBlendTree.blendType = BlendTreeType.SimpleDirectional2D;
             idleBlendTree.blendParameter = "LastMoveX";
             idleBlendTree.blendParameterY = "LastMoveY";
@@ -197,7 +196,6 @@ namespace HappyFarmer.EditorTools
             // 2. Run Blend Tree State
             BlendTree runBlendTree;
             var runState = controller.CreateBlendTreeInController("Run", out runBlendTree);
-            runState.position = new Vector3(250, 180, 0);
             runBlendTree.blendType = BlendTreeType.SimpleDirectional2D;
             runBlendTree.blendParameter = "MoveX";
             runBlendTree.blendParameterY = "MoveY";
