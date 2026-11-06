@@ -41,6 +41,7 @@ namespace HappyFarmer.EditorTools
             EnsureFolder("Assets/Tiles");
 
             ConfigureProject();
+            PlayerAnimationBuilder.GenerateAnimationsAndController();
             var sprites = LoadAllSprites();
             var tiles = LoadAllTiles(sprites);
             CreateTilePalette(tiles);
@@ -569,6 +570,11 @@ namespace HappyFarmer.EditorTools
             shadowRenderer.sortingLayerName = GroundLayer;
             shadowRenderer.sortingOrder = 10;
             shadowRenderer.color = new Color(1f, 1f, 1f, 0.45f);
+
+            // Animator component
+            var anim = player.AddComponent<Animator>();
+            var controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Animations/Player/Bunny.controller");
+            if (controller != null) anim.runtimeAnimatorController = controller;
 
             // PlayerController component
             player.AddComponent<HappyFarmer.Gameplay.PlayerController>();
