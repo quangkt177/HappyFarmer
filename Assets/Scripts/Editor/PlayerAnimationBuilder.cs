@@ -223,23 +223,32 @@ namespace HappyFarmer.EditorTools
             return controller;
         }
 
+        private static readonly string[] TargetScenePaths = new[]
+        {
+            "Assets/Scenes/FarmMap.unity",
+            "Assets/Scenes/PastureScene.unity"
+        };
+
         private static void AttachToScenePlayer(AnimatorController controller)
         {
-            if (!File.Exists(ScenePath)) return;
-
-            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
-            var player = GameObject.Find("Player");
-            if (player != null)
+            foreach (var scenePath in TargetScenePaths)
             {
-                var anim = player.GetComponent<Animator>();
-                if (anim == null)
+                if (!File.Exists(scenePath)) continue;
+
+                var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                var player = GameObject.Find("Player");
+                if (player != null)
                 {
-                    anim = player.AddComponent<Animator>();
+                    var anim = player.GetComponent<Animator>();
+                    if (anim == null)
+                    {
+                        anim = player.AddComponent<Animator>();
+                    }
+                    anim.runtimeAnimatorController = controller;
+                    EditorSceneManager.MarkSceneDirty(scene);
+                    EditorSceneManager.SaveScene(scene);
+                    Debug.Log($"[HappyFarmer] Attached Animator and Controller to Player in {Path.GetFileName(scenePath)}.");
                 }
-                anim.runtimeAnimatorController = controller;
-                EditorSceneManager.MarkSceneDirty(scene);
-                EditorSceneManager.SaveScene(scene);
-                Debug.Log("[HappyFarmer] Attached Animator and Controller to Player in FarmMap scene.");
             }
         }
 

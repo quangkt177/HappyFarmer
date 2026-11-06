@@ -634,6 +634,11 @@ namespace HappyFarmer.EditorTools
             shadowRenderer.sortingOrder = 10;
             shadowRenderer.color = new Color(1f, 1f, 1f, 0.45f);
 
+            // Animator component
+            var anim = player.AddComponent<Animator>();
+            var controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Animations/Player/Bunny.controller");
+            if (controller != null) anim.runtimeAnimatorController = controller;
+
             player.AddComponent<PlayerController>();
         }
 
