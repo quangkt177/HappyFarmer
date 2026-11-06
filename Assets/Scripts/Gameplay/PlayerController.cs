@@ -9,23 +9,19 @@ namespace HappyFarmer.Gameplay
         [SerializeField] private float moveSpeed = 4f;
 
         private Rigidbody2D rb;
-        private SpriteRenderer spriteRenderer;
         private Animator animator;
 
         private Vector2 movement;
-        private Vector2 lastDirection = Vector2.down; // Default facing down
+        
+        // Directions: 0 = Down, 1 = Up, 2 = Left, 3 = Right
+        private int currentDirection = 0; // Default facing down
 
-        // Animator Parameter Hashes
-        private static readonly int MoveXHash = Animator.StringToHash("MoveX");
-        private static readonly int MoveYHash = Animator.StringToHash("MoveY");
-        private static readonly int SpeedHash = Animator.StringToHash("Speed");
-        private static readonly int LastMoveXHash = Animator.StringToHash("LastMoveX");
-        private static readonly int LastMoveYHash = Animator.StringToHash("LastMoveY");
+        private static readonly int IsMovingHash = Animator.StringToHash("isMoving");
+        private static readonly int DirectionHash = Animator.StringToHash("direction");
 
         private void Awake()
         {
             rb = GetComponent<Rigidbody2D>();
-            spriteRenderer = GetComponent<SpriteRenderer>();
             animator = GetComponent<Animator>();
         }
 
@@ -37,7 +33,7 @@ namespace HappyFarmer.Gameplay
 
         private void FixedUpdate()
         {
-            // Normalize movement to prevent moving faster diagonally
+            // Normalize movement so diagonal speed is not faster
             Vector2 targetVelocity = movement.normalized * moveSpeed;
             rb.velocity = targetVelocity;
         }
@@ -49,14 +45,16 @@ namespace HappyFarmer.Gameplay
 
             if (movement != Vector2.zero)
             {
-                // Prioritize the dominant axis for clearer 4-directional facing
+                // Prioritize dominant axis for 4-directional animations
                 if (Mathf.Abs(movement.x) > Mathf.Abs(movement.y))
                 {
-                    lastDirection = new Vector2(Mathf.Sign(movement.x), 0f);
+                    // 3: Right, 2: Left
+                    currentDirection = movement.x > 0 ? 3 : 2;
                 }
                 else
                 {
-                    lastDirection = new Vector2(0f, Mathf.Sign(movement.y));
+                    // 1: Up, 0: Down
+                    currentDirection = movement.y > 0 ? 1 : 0;
                 }
             }
         }
@@ -66,22 +64,12 @@ namespace HappyFarmer.Gameplay
             if (animator != null && animator.runtimeAnimatorController != null)
             {
                 bool isMoving = movement.sqrMagnitude > 0.01f;
-                float currentSpeed = isMoving ? movement.magnitude : 0f;
-
-                animator.SetFloat(SpeedHash, currentSpeed);
-
-                if (isMoving)
-                {
-                    animator.SetFloat(MoveXHash, lastDirection.x);
-                    animator.SetFloat(MoveYHash, lastDirection.y);
-                }
-
-                animator.SetFloat(LastMoveXHash, lastDirection.x);
-                animator.SetFloat(LastMoveYHash, lastDirection.y);
+                animator.SetBool(IsMovingHash, isMoving);
+                animator.SetInteger(DirectionHash, currentDirection);
             }
         }
 
-        public Vector2 LastDirection => lastDirection;
+        public int CurrentDirection => currentDirection;
         public bool IsMoving => movement.sqrMagnitude > 0.01f;
     }
 }
