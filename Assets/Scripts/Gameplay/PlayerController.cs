@@ -12,12 +12,14 @@ namespace HappyFarmer.Gameplay
         private Animator animator;
 
         private Vector2 movement;
-        
-        // Directions: 0 = Down, 1 = Up, 2 = Left, 3 = Right
-        private int currentDirection = 0; // Default facing down
+        private Vector2 lastDirection = Vector2.down; // Default facing down
 
-        private static readonly int IsMovingHash = Animator.StringToHash("isMoving");
-        private static readonly int DirectionHash = Animator.StringToHash("direction");
+        // Animator Parameter Hashes
+        private static readonly int MoveXHash = Animator.StringToHash("MoveX");
+        private static readonly int MoveYHash = Animator.StringToHash("MoveY");
+        private static readonly int SpeedHash = Animator.StringToHash("Speed");
+        private static readonly int LastMoveXHash = Animator.StringToHash("LastMoveX");
+        private static readonly int LastMoveYHash = Animator.StringToHash("LastMoveY");
 
         private void Awake()
         {
@@ -45,16 +47,14 @@ namespace HappyFarmer.Gameplay
 
             if (movement != Vector2.zero)
             {
-                // Prioritize dominant axis for 4-directional animations
+                // Snap lastDirection to 4 cardinal directions for cleaner facing
                 if (Mathf.Abs(movement.x) > Mathf.Abs(movement.y))
                 {
-                    // 3: Right, 2: Left
-                    currentDirection = movement.x > 0 ? 3 : 2;
+                    lastDirection = new Vector2(Mathf.Sign(movement.x), 0f);
                 }
                 else
                 {
-                    // 1: Up, 0: Down
-                    currentDirection = movement.y > 0 ? 1 : 0;
+                    lastDirection = new Vector2(0f, Mathf.Sign(movement.y));
                 }
             }
         }
@@ -64,12 +64,21 @@ namespace HappyFarmer.Gameplay
             if (animator != null && animator.runtimeAnimatorController != null)
             {
                 bool isMoving = movement.sqrMagnitude > 0.01f;
-                animator.SetBool(IsMovingHash, isMoving);
-                animator.SetInteger(DirectionHash, currentDirection);
+
+                animator.SetFloat(SpeedHash, isMoving ? movement.magnitude : 0f);
+
+                if (isMoving)
+                {
+                    animator.SetFloat(MoveXHash, lastDirection.x);
+                    animator.SetFloat(MoveYHash, lastDirection.y);
+                }
+
+                animator.SetFloat(LastMoveXHash, lastDirection.x);
+                animator.SetFloat(LastMoveYHash, lastDirection.y);
             }
         }
 
-        public int CurrentDirection => currentDirection;
+        public Vector2 LastDirection => lastDirection;
         public bool IsMoving => movement.sqrMagnitude > 0.01f;
     }
 }

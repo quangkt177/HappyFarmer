@@ -8,6 +8,7 @@ using UnityEngine;
 
 namespace HappyFarmer.EditorTools
 {
+    [InitializeOnLoad]
     public static class PlayerAnimationBuilder
     {
         private const string IdleSheetPath = "Assets/Sprites/LittleDreamyland/Sprites/Characters/Bunny/IDLE/Bunny_Idle.png";
@@ -16,7 +17,20 @@ namespace HappyFarmer.EditorTools
         private const string ControllerPath = "Assets/Animations/Player/Bunny.controller";
         private const string ScenePath = "Assets/Scenes/FarmMap.unity";
 
-        // Directions: 0 = Down, 1 = Up, 2 = Left, 3 = Right
+        static PlayerAnimationBuilder()
+        {
+            EditorApplication.delayCall += AutoBuildIfNeeded;
+        }
+
+        private static void AutoBuildIfNeeded()
+        {
+            var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+            if (controller == null || !controller.parameters.Any(p => p.name == "MoveX"))
+            {
+                Debug.Log("[HappyFarmer] Auto-building clean Blend Tree Animator...");
+                GenerateAnimationsAndController();
+            }
+        }
 
         [MenuItem("Happy Farmer/4. Generate Player Animations and Controller", false, 4)]
         public static void GenerateAnimationsAndController()
@@ -46,8 +60,8 @@ namespace HappyFarmer.EditorTools
             var clipRunLeft = CreateAnimationClip("Bunny_Run_Left", GetSprites(runSprites, "bunny_run_2", 8), 10f);
             var clipRunDown = CreateAnimationClip("Bunny_Run_Down", GetSprites(runSprites, "bunny_run_3", 8), 10f);
 
-            // 2. Create Traditional State-based Animator Controller (No Blend Trees)
-            var controller = CreateStateBasedAnimatorController(
+            // 2. Create Clean 2D Blend Tree Animator Controller
+            var controller = CreateBlendTreeAnimatorController(
                 clipIdleDown, clipIdleUp, clipIdleLeft, clipIdleRight,
                 clipRunDown, clipRunUp, clipRunLeft, clipRunRight
             );
@@ -57,7 +71,7 @@ namespace HappyFarmer.EditorTools
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[HappyFarmer] Successfully created Player state-based animations and AnimatorController at " + AnimFolder);
+            Debug.Log("[HappyFarmer] Successfully created clean Blend Tree Animator at " + AnimFolder);
         }
 
         private static Dictionary<string, Sprite> LoadSprites(string assetPath)
@@ -137,7 +151,7 @@ namespace HappyFarmer.EditorTools
             return clip;
         }
 
-        private static AnimatorController CreateStateBasedAnimatorController(
+        private static AnimatorController CreateBlendTreeAnimatorController(
             AnimationClip idleDown, AnimationClip idleUp, AnimationClip idleLeft, AnimationClip idleRight,
             AnimationClip runDown, AnimationClip runUp, AnimationClip runLeft, AnimationClip runRight)
         {
@@ -147,14 +161,17 @@ namespace HappyFarmer.EditorTools
                 controller = AnimatorController.CreateAnimatorControllerAtPath(ControllerPath);
             }
 
-            // Remove all existing parameters and add clean parameters
+            // Reset all parameters
             for (int i = controller.parameters.Length - 1; i >= 0; i--)
             {
                 controller.RemoveParameter(i);
             }
 
-            controller.AddParameter("direction", AnimatorControllerParameterType.Int);
-            controller.AddParameter("isMoving", AnimatorControllerParameterType.Bool);
+            controller.AddParameter(new AnimatorControllerParameter { name = "MoveX", type = AnimatorControllerParameterType.Float, defaultFloat = 0f });
+            controller.AddParameter(new AnimatorControllerParameter { name = "MoveY", type = AnimatorControllerParameterType.Float, defaultFloat = 0f });
+            controller.AddParameter(new AnimatorControllerParameter { name = "Speed", type = AnimatorControllerParameterType.Float, defaultFloat = 0f });
+            controller.AddParameter(new AnimatorControllerParameter { name = "LastMoveX", type = AnimatorControllerParameterType.Float, defaultFloat = 0f });
+            controller.AddParameter(new AnimatorControllerParameter { name = "LastMoveY", type = AnimatorControllerParameterType.Float, defaultFloat = -1f });
 
             var rootStateMachine = controller.layers[0].stateMachine;
 
@@ -165,88 +182,44 @@ namespace HappyFarmer.EditorTools
                 rootStateMachine.RemoveState(childState.state);
             }
 
-            // Position layout coordinates
-            // Left column: Idle states (x = 250)
-            // Right column: Run states (x = 650)
-            var stateIdleUp = rootStateMachine.AddState("Idle_Up", new Vector3(250, 0, 0));
-            stateIdleUp.motion = idleUp;
+            // 1. Idle Blend Tree State
+            BlendTree idleBlendTree;
+            var idleState = controller.CreateBlendTreeInController("Idle", out idleBlendTree);
+            idleState.position = new Vector3(250, 50, 0);
+            idleBlendTree.blendType = BlendTreeType.SimpleDirectional2D;
+            idleBlendTree.blendParameter = "LastMoveX";
+            idleBlendTree.blendParameterY = "LastMoveY";
+            if (idleDown != null) idleBlendTree.AddChild(idleDown, new Vector2(0, -1));
+            if (idleUp != null) idleBlendTree.AddChild(idleUp, new Vector2(0, 1));
+            if (idleLeft != null) idleBlendTree.AddChild(idleLeft, new Vector2(-1, 0));
+            if (idleRight != null) idleBlendTree.AddChild(idleRight, new Vector2(1, 0));
 
-            var stateIdleLeft = rootStateMachine.AddState("Idle_Left", new Vector3(250, 90, 0));
-            stateIdleLeft.motion = idleLeft;
+            // 2. Run Blend Tree State
+            BlendTree runBlendTree;
+            var runState = controller.CreateBlendTreeInController("Run", out runBlendTree);
+            runState.position = new Vector3(250, 180, 0);
+            runBlendTree.blendType = BlendTreeType.SimpleDirectional2D;
+            runBlendTree.blendParameter = "MoveX";
+            runBlendTree.blendParameterY = "MoveY";
+            if (runDown != null) runBlendTree.AddChild(runDown, new Vector2(0, -1));
+            if (runUp != null) runBlendTree.AddChild(runUp, new Vector2(0, 1));
+            if (runLeft != null) runBlendTree.AddChild(runLeft, new Vector2(-1, 0));
+            if (runRight != null) runBlendTree.AddChild(runRight, new Vector2(1, 0));
 
-            var stateIdleRight = rootStateMachine.AddState("Idle_Right", new Vector3(250, 180, 0));
-            stateIdleRight.motion = idleRight;
+            // Default state: Idle
+            rootStateMachine.defaultState = idleState;
 
-            var stateIdleDown = rootStateMachine.AddState("Idle_Down", new Vector3(250, 270, 0));
-            stateIdleDown.motion = idleDown;
+            // Transition: Idle -> Run
+            var idleToRun = idleState.AddTransition(runState);
+            idleToRun.hasExitTime = false;
+            idleToRun.duration = 0f;
+            idleToRun.AddCondition(AnimatorConditionMode.Greater, 0.01f, "Speed");
 
-            var stateRunUp = rootStateMachine.AddState("Run_Up", new Vector3(650, 0, 0));
-            stateRunUp.motion = runUp;
-
-            var stateRunLeft = rootStateMachine.AddState("Run_Left", new Vector3(650, 90, 0));
-            stateRunLeft.motion = runLeft;
-
-            var stateRunRight = rootStateMachine.AddState("Run_Right", new Vector3(650, 180, 0));
-            stateRunRight.motion = runRight;
-
-            var stateRunDown = rootStateMachine.AddState("Run_Down", new Vector3(650, 270, 0));
-            stateRunDown.motion = runDown;
-
-            // Default state: Idle_Down
-            rootStateMachine.defaultState = stateIdleDown;
-
-            var idles = new[] { stateIdleDown, stateIdleUp, stateIdleLeft, stateIdleRight };
-            var runs = new[] { stateRunDown, stateRunUp, stateRunLeft, stateRunRight };
-
-            // 1. Idle -> Run transitions (when isMoving becomes true and direction matches)
-            for (int fromIdx = 0; fromIdx < 4; fromIdx++)
-            {
-                for (int toIdx = 0; toIdx < 4; toIdx++)
-                {
-                    var t = idles[fromIdx].AddTransition(runs[toIdx]);
-                    t.hasExitTime = false;
-                    t.duration = 0f;
-                    t.AddCondition(AnimatorConditionMode.If, 0, "isMoving");
-                    t.AddCondition(AnimatorConditionMode.Equals, toIdx, "direction");
-                }
-            }
-
-            // 2. Run -> Idle transitions (when isMoving becomes false, return to corresponding idle)
-            for (int i = 0; i < 4; i++)
-            {
-                var t = runs[i].AddTransition(idles[i]);
-                t.hasExitTime = false;
-                t.duration = 0f;
-                t.AddCondition(AnimatorConditionMode.IfNot, 0, "isMoving");
-            }
-
-            // 3. Run -> Run transitions (when direction changes while moving)
-            for (int fromIdx = 0; fromIdx < 4; fromIdx++)
-            {
-                for (int toIdx = 0; toIdx < 4; toIdx++)
-                {
-                    if (fromIdx == toIdx) continue;
-                    var t = runs[fromIdx].AddTransition(runs[toIdx]);
-                    t.hasExitTime = false;
-                    t.duration = 0f;
-                    t.AddCondition(AnimatorConditionMode.If, 0, "isMoving");
-                    t.AddCondition(AnimatorConditionMode.Equals, toIdx, "direction");
-                }
-            }
-
-            // 4. Idle -> Idle transitions (when direction changes while standing)
-            for (int fromIdx = 0; fromIdx < 4; fromIdx++)
-            {
-                for (int toIdx = 0; toIdx < 4; toIdx++)
-                {
-                    if (fromIdx == toIdx) continue;
-                    var t = idles[fromIdx].AddTransition(idles[toIdx]);
-                    t.hasExitTime = false;
-                    t.duration = 0f;
-                    t.AddCondition(AnimatorConditionMode.IfNot, 0, "isMoving");
-                    t.AddCondition(AnimatorConditionMode.Equals, toIdx, "direction");
-                }
-            }
+            // Transition: Run -> Idle
+            var runToIdle = runState.AddTransition(idleState);
+            runToIdle.hasExitTime = false;
+            runToIdle.duration = 0f;
+            runToIdle.AddCondition(AnimatorConditionMode.Less, 0.01f, "Speed");
 
             EditorUtility.SetDirty(controller);
             return controller;
