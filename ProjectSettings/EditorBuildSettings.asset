@@ -7,5 +7,8 @@ EditorBuildSettings:
   m_Scenes:
   - enabled: 1
     path: Assets/Scenes/FarmMap.unity
-    guid: 00000000000000000000000000000000
+    guid: 8e579e7ea85092e4f9509ffda44bf47d
+  - enabled: 1
+    path: Assets/Scenes/PastureScene.unity
+    guid: 12df7e5712cdb604b83f64fc37acc87b
   m_configObjects: {}

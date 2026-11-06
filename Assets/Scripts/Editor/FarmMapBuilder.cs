@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.Tilemaps;
+using HappyFarmer.Gameplay;
 
 namespace HappyFarmer.EditorTools
 {
@@ -14,6 +15,7 @@ namespace HappyFarmer.EditorTools
     public static class FarmMapBuilder
     {
         private const string ScenePath = "Assets/Scenes/FarmMap.unity";
+        private const string PastureScenePath = "Assets/Scenes/PastureScene.unity";
         private const string GroundLayer = "Ground";
         private const string WorldLayer = "World";
         private const string UiLayer = "UI";
@@ -27,7 +29,6 @@ namespace HappyFarmer.EditorTools
 
         private static void OnEditorReady()
         {
-            // Auto rebuild if scene not created
             if (!File.Exists(ScenePath))
             {
                 Debug.Log("[HappyFarmer] Building Farm Map scene...");
@@ -108,7 +109,10 @@ namespace HappyFarmer.EditorTools
                 graphics.ApplyModifiedPropertiesWithoutUndo();
             }
 
-            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+            EditorBuildSettings.scenes = new[] {
+                new EditorBuildSettingsScene(ScenePath, true),
+                new EditorBuildSettingsScene(PastureScenePath, true)
+            };
         }
 
         private static void AddSortingLayer(SerializedProperty layers, string name, int uniqueId)
@@ -238,7 +242,6 @@ namespace HappyFarmer.EditorTools
 
             if (tiles.TryGetValue("grass", out var grassTile))
             {
-                // Fill -15 to +15 beyond borders so screen never sees background void
                 for (var x = -15; x < MapWidth + 15; x++)
                 {
                     for (var y = -15; y < MapHeight + 15; y++)
@@ -256,7 +259,8 @@ namespace HappyFarmer.EditorTools
             pathsRenderer.sortingLayerName = GroundLayer;
             pathsRenderer.sortingOrder = 1;
 
-            PaintHorizontalPath(pathsTilemap, tiles, 3, 30, 7);
+            // Main horizontal path extends all the way to right edge (x=33) for pasture exit!
+            PaintHorizontalPath(pathsTilemap, tiles, 3, 33, 7);
             PaintHorizontalPath(pathsTilemap, tiles, 7, 11, 13);
             PaintVerticalPath(pathsTilemap, tiles, 11, 8, 12);
             PaintVerticalPath(pathsTilemap, tiles, 25, 8, 10);
@@ -279,10 +283,13 @@ namespace HappyFarmer.EditorTools
             BuildStall(world, sprites, 24, 11);
             BuildParcels(world, sprites);
 
-            // 3. Player
+            // 3. Portal to PastureScene at right edge
+            BuildPortal(world, sprites, new Vector2(32f, 7f), "PastureScene", new Vector2(3f, 11f), "To Pasture");
+
+            // 4. Player
             BuildPlayer(world, sprites);
 
-            // 4. Main Camera
+            // 5. Main Camera
             BuildCamera();
 
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -328,11 +335,14 @@ namespace HappyFarmer.EditorTools
         {
             var bounds = new GameObject("Boundaries");
             bounds.transform.SetParent(parent, false);
-            // Overlap boundary walls so corners are completely sealed
+
             AddWall(bounds, new Vector2(MapWidth / 2f, 0.5f), new Vector2(MapWidth + 10f, 3f));
             AddWall(bounds, new Vector2(MapWidth / 2f, MapHeight - 0.5f), new Vector2(MapWidth + 10f, 3f));
             AddWall(bounds, new Vector2(0.5f, MapHeight / 2f), new Vector2(3f, MapHeight + 10f));
-            AddWall(bounds, new Vector2(MapWidth - 0.5f, MapHeight / 2f), new Vector2(3f, MapHeight + 10f));
+
+            // Right wall has opening at y=6..8 for path to pasture
+            AddWall(bounds, new Vector2(MapWidth - 0.5f, 2.5f), new Vector2(3f, 6f));
+            AddWall(bounds, new Vector2(MapWidth - 0.5f, 15f), new Vector2(3f, 13f));
         }
 
         private static void AddWall(GameObject owner, Vector2 center, Vector2 size)
@@ -355,11 +365,14 @@ namespace HappyFarmer.EditorTools
                 Prop(scenery, sprites, random.Next(3) == 0 ? "pine" : "tree", x + 0.5f, -0.4f + (float)random.NextDouble() * 0.8f, false);
             }
 
-            // Left and right borders
+            // Left and right borders (leave opening on right at y=7)
             for (var y = 1; y < MapHeight; y += 2)
             {
                 Prop(scenery, sprites, random.Next(3) == 0 ? "pine" : "tree", 0.6f, y + 0.4f, false);
-                Prop(scenery, sprites, random.Next(3) == 0 ? "pine" : "tree", MapWidth - 0.6f, y + 0.4f, false);
+                if (y < 6 || y > 8)
+                {
+                    Prop(scenery, sprites, random.Next(3) == 0 ? "pine" : "tree", MapWidth - 0.6f, y + 0.4f, false);
+                }
             }
 
             // Seal top-right corner specifically
@@ -511,10 +524,8 @@ namespace HappyFarmer.EditorTools
             var parcelsGroup = new GameObject("Parcels").transform;
             parcelsGroup.SetParent(parent, false);
 
-            // Parcel 1: Home plot (left) - sign on right
             Prop(parcelsGroup, sprites, "sign", 10.5f, 8.5f, false);
 
-            // Parcel 2: East plot (middle) - sign on left, overgrowth inside
             var eastParcel = new GameObject("Parcel East").transform;
             eastParcel.SetParent(parcelsGroup, false);
             Prop(eastParcel, sprites, "sign", 12.5f, 8.5f, false);
@@ -529,7 +540,6 @@ namespace HappyFarmer.EditorTools
                 }
             }
 
-            // Parcel 3: South plot (bottom) - sign on left, overgrowth inside
             var southParcel = new GameObject("Parcel South").transform;
             southParcel.SetParent(parcelsGroup, false);
             Prop(southParcel, sprites, "sign", 12.5f, 3.5f, false);
@@ -543,11 +553,35 @@ namespace HappyFarmer.EditorTools
             }
         }
 
+        private static void BuildPortal(Transform parent, Dictionary<string, Sprite> sprites, Vector2 pos, string destScene, Vector2 destSpawn, string label)
+        {
+            var portalObj = new GameObject($"Portal ({label})");
+            portalObj.transform.SetParent(parent, false);
+            portalObj.transform.position = new Vector3(pos.x, pos.y, 0f);
+
+            var sign = portalObj.AddComponent<SpriteRenderer>();
+            if (sprites.TryGetValue("sign", out var signSprite)) sign.sprite = signSprite;
+            sign.sortingLayerName = WorldLayer;
+
+            var collider = portalObj.AddComponent<BoxCollider2D>();
+            collider.isTrigger = true;
+            collider.size = new Vector2(1.5f, 2.5f);
+            collider.offset = new Vector2(0f, 0f);
+
+            var portal = portalObj.AddComponent<ScenePortal>();
+            var serialized = new SerializedObject(portal);
+            serialized.FindProperty("destinationScene").stringValue = destScene;
+            serialized.FindProperty("targetSpawnPosition").vector2Value = destSpawn;
+            serialized.FindProperty("portalLabel").stringValue = label;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         private static void BuildPlayer(Transform parent, Dictionary<string, Sprite> sprites)
         {
             var player = new GameObject("Player");
             player.transform.SetParent(parent, false);
             player.transform.position = new Vector3(11f, 7.5f, 0f);
+            player.tag = "Player";
 
             var renderer = player.AddComponent<SpriteRenderer>();
             if (sprites.TryGetValue("bunny_idle_3_0", out var bunnySprite))
@@ -567,7 +601,6 @@ namespace HappyFarmer.EditorTools
             col.size = new Vector2(0.6f, 0.35f);
             col.offset = new Vector2(0f, 0.15f);
 
-            // Shadow
             var shadow = new GameObject("Shadow");
             shadow.transform.SetParent(player.transform, false);
             shadow.transform.localPosition = new Vector3(0f, 0.05f, 0f);
@@ -579,8 +612,7 @@ namespace HappyFarmer.EditorTools
             shadowRenderer.sortingOrder = 10;
             shadowRenderer.color = new Color(1f, 1f, 1f, 0.45f);
 
-            // PlayerController component
-            player.AddComponent<HappyFarmer.Gameplay.PlayerController>();
+            player.AddComponent<PlayerController>();
         }
 
         private static void BuildCamera()
@@ -595,7 +627,7 @@ namespace HappyFarmer.EditorTools
             cameraObj.tag = "MainCamera";
             cameraObj.AddComponent<AudioListener>();
 
-            var follow = cameraObj.AddComponent<HappyFarmer.Gameplay.CameraFollow>();
+            var follow = cameraObj.AddComponent<CameraFollow>();
             follow.target = GameObject.Find("Player")?.transform;
         }
     }
