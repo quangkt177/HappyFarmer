@@ -28,7 +28,7 @@ namespace HappyFarmer.EditorTools
 
         private static void OnEditorReady()
         {
-            const string flagPath = "Temp/pasture_ref_v2.flag";
+            const string flagPath = "Temp/pasture_with_stall_v1.flag";
             if (File.Exists(flagPath)) return;
 
             bool needProps = !Directory.Exists("Assets/Sprites/Barns") ||
@@ -219,6 +219,8 @@ namespace HappyFarmer.EditorTools
             PaintVerticalPath(pathsTilemap, tiles, 9, 12, 14);
             // Path leading down to Cow Pasture gate (x=20, y=9 to 11)
             PaintVerticalPath(pathsTilemap, tiles, 20, 9, 11);
+            // Path leading to Pasture Stall (x=16, y=11 to 12)
+            PaintVerticalPath(pathsTilemap, tiles, 16, 11, 12);
 
             // Chicken Pen Dirt Ground: 8 wide x 5 high -> Rect(5, 14, 9, 6)
             PaintField(pathsTilemap, tiles, new RectInt(5, 14, 9, 6));
@@ -234,13 +236,16 @@ namespace HappyFarmer.EditorTools
             // 4. Exact Cow Pasture matching Image 2
             BuildExactCowPasture(world, sprites);
 
-            // 5. Portal returning to FarmMap
+            // 5. Pasture Stall (Gian hàng nông sản gà & bò)
+            BuildPastureStall(world, sprites);
+
+            // 6. Portal returning to FarmMap
             BuildPortal(world, sprites, new Vector2(1f, 11f), "FarmMap", new Vector2(29.5f, 7f), "To Farm");
 
-            // 6. Player
+            // 7. Player
             BuildPlayer(world, sprites, new Vector2(3f, 11f));
 
-            // 7. Main Camera
+            // 8. Main Camera
             BuildCamera();
 
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -474,6 +479,39 @@ namespace HappyFarmer.EditorTools
 
             // Cow 3: Lower-right near feed tubs (x=22.8, y=4.8)
             SpawnCowWithGrowth(pasture, AnimalGrowth.GrowthStage.Adult, calfFrames, cowFrames, 25f, 22.8f, 4.8f);
+        }
+
+        // =========================================================================
+        // PASTURE SHOP STALL (GIAN HÀNG NÔNG SẢN GÀ & BÒ)
+        // =========================================================================
+        private static void BuildPastureStall(Transform parent, Dictionary<string, Sprite> sprites)
+        {
+            var stallObj = new GameObject("Pasture Stall");
+            stallObj.transform.SetParent(parent, false);
+            stallObj.transform.position = new Vector3(16.0f, 13.2f, 0f);
+
+            var renderer = stallObj.AddComponent<SpriteRenderer>();
+            if (!sprites.TryGetValue("Pasture_Stall", out var stallSprite))
+            {
+                stallSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Barns/Pasture_Stall.png");
+            }
+            if (stallSprite != null)
+            {
+                renderer.sprite = stallSprite;
+            }
+            renderer.sortingLayerName = WorldLayer;
+            renderer.spriteSortPoint = SpriteSortPoint.Pivot;
+
+            // Box collider covering the wooden counter so player can stand right in front
+            var collider = stallObj.AddComponent<BoxCollider2D>();
+            collider.size = new Vector2(2.4f, 0.7f);
+            collider.offset = new Vector2(0f, 0.45f);
+
+            // Surrounding props & lights
+            Prop(parent, sprites, "lamp", 14.2f, 13.0f, true);
+            Prop(parent, sprites, "flowers_white", 17.8f, 12.8f, false);
+            Decal(parent, sprites, "detail_25", 14.8f, 11.5f);
+            Decal(parent, sprites, "detail_5", 17.2f, 11.5f);
         }
 
         private static void SpawnChickenWithGrowth(Transform parent, AnimalGrowth.GrowthStage stage, Sprite[] egg, Sprite[] chick, Sprite[] adult, float growTime, float x, float y)
