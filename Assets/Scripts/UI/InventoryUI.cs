@@ -183,6 +183,22 @@ namespace HappyFarmer.UI
                 backpackModalRoot.SetActive(open);
             }
 
+            if (InventoryManager.Instance != null)
+            {
+                if (!open)
+                {
+                    inspectedSlotIndex = InventoryManager.Instance.SelectedHotbarIndex;
+                }
+                else
+                {
+                    var currentInspected = InventoryManager.Instance.GetSlot(inspectedSlotIndex);
+                    if (currentInspected == null || currentInspected.IsEmpty)
+                    {
+                        inspectedSlotIndex = InventoryManager.Instance.SelectedHotbarIndex;
+                    }
+                }
+            }
+
             if (!open && dragGhostRect != null)
             {
                 dragGhostRect.gameObject.SetActive(false);
@@ -194,10 +210,7 @@ namespace HappyFarmer.UI
 
         private void OnHotbarSelectionChanged(int hotbarIndex)
         {
-            if (backpackModalRoot == null || !backpackModalRoot.activeSelf)
-            {
-                inspectedSlotIndex = hotbarIndex;
-            }
+            inspectedSlotIndex = hotbarIndex;
             RefreshAll();
         }
 
@@ -206,12 +219,9 @@ namespace HappyFarmer.UI
             var manager = InventoryManager.Instance;
             if (manager == null) return;
 
-            bool isBagOpen = backpackModalRoot != null && backpackModalRoot.activeSelf;
-
             if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
             {
-                manager.QuickMoveSlot(slotIndex);
-                inspectedSlotIndex = slotIndex;
+                inspectedSlotIndex = manager.QuickMoveSlot(slotIndex);
                 RefreshAll();
                 return;
             }
@@ -230,8 +240,7 @@ namespace HappyFarmer.UI
             var manager = InventoryManager.Instance;
             if (manager == null) return;
 
-            manager.QuickMoveSlot(slotIndex);
-            inspectedSlotIndex = slotIndex;
+            inspectedSlotIndex = manager.QuickMoveSlot(slotIndex);
             RefreshAll();
         }
 
@@ -412,7 +421,7 @@ namespace HappyFarmer.UI
                 }
                 if (useButton != null) useButton.interactable = false;
                 if (dropButton != null) dropButton.interactable = false;
-                if (useButtonText != null) useButtonText.text = "Sử dụng";
+                if (useButtonText != null) useButtonText.text = "Sử Dụng";
                 return;
             }
 
@@ -461,7 +470,10 @@ namespace HappyFarmer.UI
 
         public void BuildUIHierarchy()
         {
-            GenerateThemeSprites();
+            if (Application.isPlaying)
+            {
+                GenerateThemeSprites();
+            }
 
             // Xóa các con cũ nếu đang rebuild
             for (int i = transform.childCount - 1; i >= 0; i--)
@@ -486,6 +498,11 @@ namespace HappyFarmer.UI
 
             // 4. Icon kéo thả (Drag Ghost)
             BuildDragGhost();
+
+            if (Application.isPlaying)
+            {
+                ApplyProceduralSpritesToExistingUI();
+            }
         }
 
         private void BuildToastBanner(Font font)
@@ -499,8 +516,6 @@ namespace HappyFarmer.UI
             rect.sizeDelta = new Vector2(520f, 46f);
 
             var bg = toastBannerObject.AddComponent<UnityEngine.UI.Image>();
-            bg.sprite = woodPanelSprite;
-            bg.type = UnityEngine.UI.Image.Type.Sliced;
             bg.color = new Color(0.36f, 0.22f, 0.13f, 0.96f);
             bg.raycastTarget = false;
 
@@ -529,8 +544,6 @@ namespace HappyFarmer.UI
             ribbonRect.sizeDelta = new Vector2(620f, 34f);
 
             var ribbonImg = ribbonObj.AddComponent<UnityEngine.UI.Image>();
-            ribbonImg.sprite = woodPanelSprite;
-            ribbonImg.type = UnityEngine.UI.Image.Type.Sliced;
             ribbonImg.color = new Color(0.42f, 0.26f, 0.15f, 0.94f);
             ribbonImg.raycastTarget = false;
 
@@ -548,8 +561,6 @@ namespace HappyFarmer.UI
             barRect.sizeDelta = new Vector2(616f, 84f);
 
             var barBg = barFrame.AddComponent<UnityEngine.UI.Image>();
-            barBg.sprite = woodPanelSprite;
-            barBg.type = UnityEngine.UI.Image.Type.Sliced;
             barBg.color = new Color(0.54f, 0.34f, 0.20f, 1f);
             barBg.raycastTarget = true;
 
@@ -557,8 +568,6 @@ namespace HappyFarmer.UI
             var innerBarRect = innerBar.GetComponent<RectTransform>();
             StretchFull(innerBarRect, 8f, 8f);
             var innerBarImg = innerBar.AddComponent<UnityEngine.UI.Image>();
-            innerBarImg.sprite = innerPaperSprite;
-            innerBarImg.type = UnityEngine.UI.Image.Type.Sliced;
             innerBarImg.color = new Color(0.75f, 0.58f, 0.38f, 1f);
             innerBarImg.raycastTarget = false;
 
@@ -591,8 +600,6 @@ namespace HappyFarmer.UI
             bagBtnRect.sizeDelta = new Vector2(88f, 84f);
 
             var bagBtnImg = bagBtnObj.AddComponent<UnityEngine.UI.Image>();
-            bagBtnImg.sprite = woodPanelSprite;
-            bagBtnImg.type = UnityEngine.UI.Image.Type.Sliced;
             bagBtnImg.color = new Color(0.62f, 0.39f, 0.22f, 1f);
             bagBtnImg.raycastTarget = true;
 
@@ -649,8 +656,6 @@ namespace HappyFarmer.UI
             winRect.sizeDelta = new Vector2(760f, 470f);
 
             var winBg = windowObj.AddComponent<UnityEngine.UI.Image>();
-            winBg.sprite = woodPanelSprite;
-            winBg.type = UnityEngine.UI.Image.Type.Sliced;
             winBg.color = new Color(0.51f, 0.32f, 0.18f, 1f);
             winBg.raycastTarget = true;
 
@@ -659,8 +664,6 @@ namespace HappyFarmer.UI
             var parchmentRect = parchmentObj.GetComponent<RectTransform>();
             StretchFull(parchmentRect, 14f, 14f);
             var parchmentImg = parchmentObj.AddComponent<UnityEngine.UI.Image>();
-            parchmentImg.sprite = innerPaperSprite;
-            parchmentImg.type = UnityEngine.UI.Image.Type.Sliced;
             parchmentImg.color = new Color(0.95f, 0.89f, 0.76f, 1f);
             parchmentImg.raycastTarget = false;
 
@@ -674,8 +677,6 @@ namespace HappyFarmer.UI
             headerRect.sizeDelta = new Vector2(-20f, 52f);
 
             var headerImg = headerObj.AddComponent<UnityEngine.UI.Image>();
-            headerImg.sprite = woodPanelSprite;
-            headerImg.type = UnityEngine.UI.Image.Type.Sliced;
             headerImg.color = new Color(0.44f, 0.27f, 0.15f, 1f);
             headerImg.raycastTarget = false;
 
@@ -708,8 +709,6 @@ namespace HappyFarmer.UI
             leftRect.offsetMax = new Vector2(394f, -68f);
 
             var leftBg = leftPanel.AddComponent<UnityEngine.UI.Image>();
-            leftBg.sprite = innerPaperSprite;
-            leftBg.type = UnityEngine.UI.Image.Type.Sliced;
             leftBg.color = new Color(0.82f, 0.69f, 0.49f, 1f);
             leftBg.raycastTarget = false;
 
@@ -755,8 +754,6 @@ namespace HappyFarmer.UI
             rightRect.offsetMax = new Vector2(-14f, -68f);
 
             var rightBg = rightPanel.AddComponent<UnityEngine.UI.Image>();
-            rightBg.sprite = innerPaperSprite;
-            rightBg.type = UnityEngine.UI.Image.Type.Sliced;
             rightBg.color = new Color(0.89f, 0.80f, 0.63f, 1f);
             rightBg.raycastTarget = false;
 
@@ -770,8 +767,6 @@ namespace HappyFarmer.UI
             previewRect.sizeDelta = new Vector2(84f, 84f);
 
             var previewBg = previewBox.AddComponent<UnityEngine.UI.Image>();
-            previewBg.sprite = slotBoxSprite;
-            previewBg.type = UnityEngine.UI.Image.Type.Sliced;
             previewBg.color = new Color(0.96f, 0.90f, 0.76f, 1f);
             previewBg.raycastTarget = false;
 
@@ -818,8 +813,6 @@ namespace HappyFarmer.UI
             descBoxRect.offsetMax = new Vector2(-16f, -112f);
 
             var descBg = descBox.AddComponent<UnityEngine.UI.Image>();
-            descBg.sprite = innerPaperSprite;
-            descBg.type = UnityEngine.UI.Image.Type.Sliced;
             descBg.color = new Color(0.95f, 0.89f, 0.77f, 1f);
             descBg.raycastTarget = false;
 
@@ -878,8 +871,6 @@ namespace HappyFarmer.UI
         {
             var slotObj = CreateUIObject(name, parent);
             var bgImg = slotObj.AddComponent<UnityEngine.UI.Image>();
-            bgImg.sprite = slotBoxSprite;
-            bgImg.type = UnityEngine.UI.Image.Type.Sliced;
             bgImg.color = isHotbar
                 ? new Color(0.89f, 0.79f, 0.61f, 1f)
                 : new Color(0.86f, 0.75f, 0.57f, 1f);
@@ -889,8 +880,6 @@ namespace HappyFarmer.UI
             var borderObj = CreateUIObject("SelectionBorder", slotObj.transform);
             StretchFull(borderObj.GetComponent<RectTransform>(), 0f, 0f);
             var borderImg = borderObj.AddComponent<UnityEngine.UI.Image>();
-            borderImg.sprite = selectionOutlineSprite;
-            borderImg.type = UnityEngine.UI.Image.Type.Sliced;
             borderImg.color = new Color(0.98f, 0.76f, 0.18f, 1f);
             borderImg.raycastTarget = false;
             borderImg.enabled = false;
@@ -945,8 +934,6 @@ namespace HappyFarmer.UI
             rect.sizeDelta = size;
 
             var img = btnObj.AddComponent<UnityEngine.UI.Image>();
-            img.sprite = buttonSprite;
-            img.type = UnityEngine.UI.Image.Type.Sliced;
             img.color = bgColor;
             img.raycastTarget = true;
 
@@ -971,8 +958,6 @@ namespace HappyFarmer.UI
         {
             var btnObj = CreateUIObject(name, parent);
             var img = btnObj.AddComponent<UnityEngine.UI.Image>();
-            img.sprite = buttonSprite;
-            img.type = UnityEngine.UI.Image.Type.Sliced;
             img.color = bgColor;
             img.raycastTarget = true;
 
@@ -1037,12 +1022,17 @@ namespace HappyFarmer.UI
 
         private void ApplyProceduralSpritesToExistingUI()
         {
-            // Gán lại 9-slice procedural sprites khi vào Play Mode nếu các Image trong Scene đang dùng màu thuần
             var allImages = GetComponentsInChildren<UnityEngine.UI.Image>(true);
             foreach (var img in allImages)
             {
-                if (img == null || img.sprite != null) continue;
+                if (img == null) continue;
                 string n = img.gameObject.name;
+
+                if (n == "BackpackModal" || n == "Icon" || n == "DetailIcon" || n == "CrateIcon" || n == "DragGhostIcon")
+                {
+                    continue;
+                }
+
                 if (n == "SelectionBorder")
                 {
                     img.sprite = selectionOutlineSprite;
@@ -1053,12 +1043,17 @@ namespace HappyFarmer.UI
                     img.sprite = slotBoxSprite;
                     img.type = UnityEngine.UI.Image.Type.Sliced;
                 }
+                else if (n == "HotbarInner" || n == "ParchmentBody" || n == "BackpackGridPanel" || n == "ItemDetailsPanel" || n == "DescriptionBox")
+                {
+                    img.sprite = innerPaperSprite;
+                    img.type = UnityEngine.UI.Image.Type.Sliced;
+                }
                 else if (n.EndsWith("Button"))
                 {
                     img.sprite = buttonSprite;
                     img.type = UnityEngine.UI.Image.Type.Sliced;
                 }
-                else if (n != "BackpackModal" && n != "Icon" && n != "DetailIcon" && n != "CrateIcon" && n != "DragGhostIcon")
+                else
                 {
                     img.sprite = woodPanelSprite;
                     img.type = UnityEngine.UI.Image.Type.Sliced;

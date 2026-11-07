@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 
 namespace HappyFarmer.Inventory
 {
@@ -25,6 +26,8 @@ namespace HappyFarmer.Inventory
         private readonly Dictionary<string, Sprite> spriteLookup = new Dictionary<string, Sprite>();
         private readonly Dictionary<Vector2Int, CropPlot> plantedCrops = new Dictionary<Vector2Int, CropPlot>();
 
+        private Tilemap pathsTilemap;
+
         public event Action OnInventoryChanged;
         public event Action<int> OnSelectedHotbarChanged;
         public event Action<string> OnNotification;
@@ -48,6 +51,7 @@ namespace HappyFarmer.Inventory
         private void Start()
         {
             FindPlayer();
+            FindPathsTilemap();
             SpawnStarterWorldPickups();
             OnInventoryChanged?.Invoke();
             OnSelectedHotbarChanged?.Invoke(selectedHotbarIndex);
@@ -70,6 +74,15 @@ namespace HappyFarmer.Inventory
             if (playerObj != null)
             {
                 PlayerTransform = playerObj.transform;
+            }
+        }
+
+        private void FindPathsTilemap()
+        {
+            var pathsObj = GameObject.Find("Grid/Paths") ?? GameObject.Find("Paths");
+            if (pathsObj != null)
+            {
+                pathsTilemap = pathsObj.GetComponent<Tilemap>();
             }
         }
 
@@ -137,7 +150,7 @@ namespace HappyFarmer.Inventory
             itemDatabase = new List<InventoryItemData>
             {
                 CreateItem("seed_carrot", "Hạt Cà Rốt",
-                    "Hạt giống cà rốt ngọt giòn. Đứng trên đất và bấm [E] hoặc nút [Sử dụng] để gieo trồng.",
+                    "Hạt giống cà rốt ngọt giòn. Đứng trên ô đất ruộng và bấm [E] hoặc nút [Gieo Hạt] để trồng.",
                     ItemCategory.Seed, "seed_carrot", "carrot", "produce_carrot"),
                 CreateItem("seed_strawberry", "Hạt Dâu Tây",
                     "Hạt giống dâu tây đỏ mọng. Gieo xuống đất bằng phím [E] và chờ thu hoạch.",
@@ -173,7 +186,7 @@ namespace HappyFarmer.Inventory
                     ItemCategory.Forage, "flowers_yellow"),
 
                 CreateItem("log", "Khúc Gỗ Sồi",
-                    "Gỗ tự nhiên thu thập khi phát quang nông trại, dùng làm vật liệu xây dựng.",
+                    "Gỗ tự nhiên thu thập khi phát quang bụi cây trên nông trại.",
                     ItemCategory.Resource, "log"),
                 CreateItem("rock_small", "Đá Cuội Nhỏ",
                     "Viên đá cuội nhặt từ các thửa đất hoang quanh nông trại.",
@@ -292,7 +305,7 @@ namespace HappyFarmer.Inventory
 
         private void HandleWorldInteractionKeys()
         {
-            // Phím [E] để Thu hoạch cây chín / Nhặt vật phẩm / Sử dụng vật phẩm đang cầm
+            // Phím [E] để Thu hoạch cây chín / Dọn cỏ hái lượm / Sử dụng vật phẩm đang cầm
             if (Input.GetKeyDown(KeyCode.E))
             {
                 if (!TryHarvestNearbyCrop() && !TryForageNearbySceneProp())
@@ -311,12 +324,6 @@ namespace HappyFarmer.Inventory
         public void SelectHotbarSlot(int index)
         {
             index = Mathf.Clamp(index, 0, HotbarSize - 1);
-            if (selectedHotbarIndex == index)
-            {
-                OnSelectedHotbarChanged?.Invoke(selectedHotbarIndex);
-                return;
-            }
-
             selectedHotbarIndex = index;
             OnSelectedHotbarChanged?.Invoke(selectedHotbarIndex);
         }
@@ -441,13 +448,14 @@ namespace HappyFarmer.Inventory
             OnInventoryChanged?.Invoke();
         }
 
-        public void QuickMoveSlot(int slotIndex)
+        public int QuickMoveSlot(int slotIndex)
         {
             var source = GetSlot(slotIndex);
-            if (source == null || source.IsEmpty) return;
+            if (source == null || source.IsEmpty) return slotIndex;
 
             int rangeStart = slotIndex < HotbarSize ? HotbarSize : 0;
             int rangeEnd = slotIndex < HotbarSize ? TotalSlots : HotbarSize;
+            int lastTargetIndex = slotIndex;
 
             var data = GetItemData(source.itemId);
             int maxStack = data != null ? data.maxStack : 99;
@@ -461,6 +469,7 @@ namespace HappyFarmer.Inventory
                     int move = Mathf.Min(source.count, maxStack - target.count);
                     target.count += move;
                     source.count -= move;
+                    lastTargetIndex = i;
                     if (source.count <= 0) source.Clear();
                 }
             }
@@ -473,11 +482,13 @@ namespace HappyFarmer.Inventory
                 {
                     target.Set(source.itemId, source.count);
                     source.Clear();
+                    lastTargetIndex = i;
                     break;
                 }
             }
 
             OnInventoryChanged?.Invoke();
+            return lastTargetIndex;
         }
 
         public void SortBackpack()
@@ -608,10 +619,26 @@ namespace HappyFarmer.Inventory
                 if (PlayerTransform == null) return false;
             }
 
+            if (pathsTilemap == null)
+            {
+                FindPathsTilemap();
+            }
+
             Vector2Int cell = new Vector2Int(
                 Mathf.FloorToInt(PlayerTransform.position.x),
                 Mathf.FloorToInt(PlayerTransform.position.y)
             );
+
+            // Kiểm tra không cho trồng đè lên đường đá (path_*)
+            if (pathsTilemap != null)
+            {
+                var tile = pathsTilemap.GetTile(new Vector3Int(cell.x, cell.y, 0));
+                if (tile != null && tile.name.StartsWith("path_"))
+                {
+                    Notify("Không thể gieo hạt trên đường đi! Hãy đứng trên ô đất ruộng.");
+                    return false;
+                }
+            }
 
             if (plantedCrops.TryGetValue(cell, out var existingPlot) && existingPlot != null)
             {
@@ -675,12 +702,12 @@ namespace HappyFarmer.Inventory
         {
             if (PlayerTransform == null) return false;
 
-            // Cho phép hái nấm / nhặt đá nhỏ / hoa trên bản đồ khi đứng gần và bấm [E]
-            string[] forageableNames = { "mushroom", "rock_small", "flowers_white", "flowers_yellow" };
+            // Cho phép hái nấm / nhặt đá nhỏ / hoa / gỗ / dọn bụi cỏ trên bản đồ khi đứng gần và bấm [E]
+            string[] forageableNames = { "mushroom", "rock_small", "flowers_white", "flowers_yellow", "log", "bush", "bush_round" };
             var allRenderers = FindObjectsOfType<SpriteRenderer>();
 
             SpriteRenderer bestTarget = null;
-            string matchedItemId = null;
+            string matchedPropName = null;
             float bestDist = 1.25f;
 
             foreach (var sr in allRenderers)
@@ -698,16 +725,21 @@ namespace HappyFarmer.Inventory
                         {
                             bestDist = d;
                             bestTarget = sr;
-                            matchedItemId = forageableNames[i];
+                            matchedPropName = forageableNames[i];
                         }
                         break;
                     }
                 }
             }
 
-            if (bestTarget != null && !string.IsNullOrEmpty(matchedItemId))
+            if (bestTarget != null && !string.IsNullOrEmpty(matchedPropName))
             {
-                if (AddItem(matchedItemId, 1))
+                // Nếu phát quang bụi cây (bush / bush_round) thì thu được Khúc Gỗ Sồi (log)
+                string rewardItemId = (matchedPropName == "bush" || matchedPropName == "bush_round")
+                    ? "log"
+                    : matchedPropName;
+
+                if (AddItem(rewardItemId, 1))
                 {
                     Destroy(bestTarget.gameObject);
                     return true;

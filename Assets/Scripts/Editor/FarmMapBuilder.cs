@@ -640,9 +640,14 @@ namespace HappyFarmer.EditorTools
                 esObj.AddComponent<StandaloneInputModule>();
             }
 
-            if (Object.FindObjectOfType<InventoryUI>() == null)
+            var existingUI = Object.FindObjectOfType<InventoryUI>();
+            if (existingUI == null)
             {
                 InventoryBootstrap.CreateInventoryCanvas();
+            }
+            else
+            {
+                existingUI.BuildUIHierarchy();
             }
         }
     }
