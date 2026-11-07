@@ -8,32 +8,33 @@ namespace HappyFarmer.Inventory
         public string harvestItemId;
         public int currentStage;
         public float secondsPerStage = 3.5f;
+        public int minYield = 2;
+        public int maxYield = 3;
 
         private float stageTimer;
         private Sprite[] stageSprites;
         private SpriteRenderer cropRenderer;
-        private SpriteRenderer soilRenderer;
 
-        public bool IsMature => stageSprites != null && currentStage >= stageSprites.Length - 1;
+        public bool IsMature => stageSprites != null && stageSprites.Length > 0 && currentStage >= stageSprites.Length - 1;
 
-        public void Initialize(string key, string resultItemId, Sprite soilWetSprite, Sprite[] stages)
+        public void Initialize(InventoryItemData seedData, Sprite soilSprite, Sprite[] stages)
         {
-            cropKey = key;
-            harvestItemId = resultItemId;
+            cropKey = seedData.cropKey;
+            harvestItemId = seedData.harvestItemId;
+            secondsPerStage = Mathf.Max(0.5f, seedData.secondsPerStage);
+            minYield = Mathf.Max(1, seedData.minHarvestYield);
+            maxYield = Mathf.Max(minYield, seedData.maxHarvestYield);
             stageSprites = stages;
             currentStage = 0;
             stageTimer = 0f;
 
-            // Lớp đất ướt bên dưới
             var soilObj = new GameObject("WetSoil");
             soilObj.transform.SetParent(transform, false);
-            soilObj.transform.localPosition = Vector3.zero;
-            soilRenderer = soilObj.AddComponent<SpriteRenderer>();
-            soilRenderer.sprite = soilWetSprite;
+            var soilRenderer = soilObj.AddComponent<SpriteRenderer>();
+            soilRenderer.sprite = soilSprite;
             soilRenderer.sortingLayerName = "Ground";
             soilRenderer.sortingOrder = 3;
 
-            // Lớp cây trồng bên trên
             var cropObj = new GameObject("CropSprite");
             cropObj.transform.SetParent(transform, false);
             cropObj.transform.localPosition = new Vector3(0f, -0.25f, 0f);
@@ -47,30 +48,26 @@ namespace HappyFarmer.Inventory
 
         private void Update()
         {
-            if (stageSprites == null || stageSprites.Length == 0) return;
+            if (IsMature || stageSprites == null || stageSprites.Length == 0) return;
 
-            if (!IsMature)
+            stageTimer += Time.deltaTime;
+            if (stageTimer < secondsPerStage) return;
+
+            stageTimer = 0f;
+            currentStage = Mathf.Min(currentStage + 1, stageSprites.Length - 1);
+            UpdateVisual();
+
+            if (IsMature && InventoryManager.Instance != null)
             {
-                stageTimer += Time.deltaTime;
-                if (stageTimer >= secondsPerStage)
-                {
-                    stageTimer = 0f;
-                    currentStage = Mathf.Min(currentStage + 1, stageSprites.Length - 1);
-                    UpdateVisual();
-
-                    if (IsMature && InventoryManager.Instance != null)
-                    {
-                        var itemData = InventoryManager.Instance.GetItemData(harvestItemId);
-                        string cropName = itemData != null ? itemData.displayName : cropKey;
-                        InventoryManager.Instance.Notify($"{cropName} đã chín! Bấm [E] gần cây để thu hoạch.");
-                    }
-                }
+                var item = InventoryManager.Instance.GetItemData(harvestItemId);
+                string cropName = item != null ? item.displayName : cropKey;
+                InventoryManager.Instance.Notify($"{cropName} đã chín! Bấm [E] gần cây để thu hoạch.");
             }
         }
 
         private void UpdateVisual()
         {
-            if (cropRenderer != null && stageSprites != null && currentStage >= 0 && currentStage < stageSprites.Length)
+            if (cropRenderer != null && stageSprites != null && currentStage < stageSprites.Length)
             {
                 cropRenderer.sprite = stageSprites[currentStage];
             }
@@ -80,13 +77,11 @@ namespace HappyFarmer.Inventory
         {
             if (!IsMature || manager == null) return false;
 
-            int yieldAmount = Random.Range(2, 4);
-            if (manager.AddItem(harvestItemId, yieldAmount))
-            {
-                Destroy(gameObject);
-                return true;
-            }
-            return false;
+            int yieldAmount = Random.Range(minYield, maxYield + 1);
+            if (!manager.AddItem(harvestItemId, yieldAmount)) return false;
+
+            Destroy(gameObject);
+            return true;
         }
     }
 }

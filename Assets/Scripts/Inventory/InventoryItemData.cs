@@ -14,6 +14,7 @@ namespace HappyFarmer.Inventory
     [Serializable]
     public class InventoryItemData
     {
+        [Header("Thông tin cơ bản")]
         public string id;
         public string displayName;
         [TextArea(2, 4)]
@@ -21,11 +22,29 @@ namespace HappyFarmer.Inventory
         public ItemCategory category;
         public string spriteName;
         public Sprite icon;
+        [Min(1)]
         public int maxStack = 99;
 
-        // Dùng cho hạt giống: tên cây trồng (vd: "carrot", "strawberry", "pumpkin", "cauliflower")
+        [Header("Kinh tế (Economy)")]
+        public bool canBeSold = true;
+        [Min(0)]
+        public int sellPrice = 10;
+        public bool canBeBought;
+        [Min(0)]
+        public int buyPrice;
+
+        [Header("Trồng trọt (Chỉ dùng cho Seed)")]
         public string cropKey;
         public string harvestItemId;
+        [Min(0.5f)]
+        public float secondsPerStage = 3.5f;
+        [Min(1)]
+        public int minHarvestYield = 2;
+        [Min(1)]
+        public int maxHarvestYield = 3;
+
+        public bool CanSell => canBeSold && sellPrice > 0;
+        public bool CanBuy => canBeBought && buyPrice > 0;
 
         public string GetCategoryDisplayName()
         {
@@ -36,6 +55,17 @@ namespace HappyFarmer.Inventory
                 case ItemCategory.Forage: return "Hái lượm";
                 case ItemCategory.Resource: return "Nguyên liệu";
                 default: return "Vật phẩm";
+            }
+        }
+
+        public string GetActionLabel()
+        {
+            switch (category)
+            {
+                case ItemCategory.Seed: return "Gieo Hạt";
+                case ItemCategory.Produce:
+                case ItemCategory.Forage: return "Sử Dụng";
+                default: return "Đặt Ra";
             }
         }
     }
@@ -50,27 +80,19 @@ namespace HappyFarmer.Inventory
 
         public void Set(string id, int amount)
         {
-            itemId = id;
-            count = amount;
-            if (count <= 0)
+            if (string.IsNullOrEmpty(id) || amount <= 0)
             {
                 Clear();
+                return;
             }
+            itemId = id;
+            count = amount;
         }
 
         public void Clear()
         {
             itemId = string.Empty;
             count = 0;
-        }
-
-        public InventorySlot Clone()
-        {
-            return new InventorySlot
-            {
-                itemId = this.itemId,
-                count = this.count
-            };
         }
     }
 }

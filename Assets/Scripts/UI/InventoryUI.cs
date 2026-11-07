@@ -7,11 +7,24 @@ namespace HappyFarmer.UI
 {
     public class InventoryUI : MonoBehaviour
     {
+        [Header("UI Configuration")]
+        [SerializeField] private KeyCode toggleKey = KeyCode.I;
+        [SerializeField] private KeyCode alternateToggleKey = KeyCode.Tab;
+        [SerializeField] private int backpackGridColumns = 4;
+        [SerializeField] private float toastDuration = 2.8f;
+
         [Header("Main Containers")]
         [SerializeField] private GameObject hotbarRoot;
         [SerializeField] private GameObject backpackModalRoot;
         [SerializeField] private RectTransform hotbarSlotsContainer;
         [SerializeField] private RectTransform backpackSlotsContainer;
+
+        [Header("Economy HUD & Coin Display")]
+        [SerializeField] private GameObject hudCoinBadge;
+        [SerializeField] private UnityEngine.UI.Image hudCoinIcon;
+        [SerializeField] private UnityEngine.UI.Text hudCoinText;
+        [SerializeField] private UnityEngine.UI.Image modalCoinIcon;
+        [SerializeField] private UnityEngine.UI.Text modalCoinText;
 
         [Header("Hotbar Info & Controls")]
         [SerializeField] private UnityEngine.UI.Text activeItemLabel;
@@ -23,24 +36,31 @@ namespace HappyFarmer.UI
         [SerializeField] private UnityEngine.UI.Text detailNameText;
         [SerializeField] private UnityEngine.UI.Text detailCategoryText;
         [SerializeField] private UnityEngine.UI.Text detailCountText;
+        [SerializeField] private UnityEngine.UI.Text detailPriceText;
         [SerializeField] private UnityEngine.UI.Text detailDescriptionText;
+
+        [Header("Action & Economy Buttons")]
         [SerializeField] private UnityEngine.UI.Button useButton;
         [SerializeField] private UnityEngine.UI.Text useButtonText;
         [SerializeField] private UnityEngine.UI.Button dropButton;
         [SerializeField] private UnityEngine.UI.Button sortButton;
+        [SerializeField] private UnityEngine.UI.Button sellOneButton;
+        [SerializeField] private UnityEngine.UI.Text sellOneButtonText;
+        [SerializeField] private UnityEngine.UI.Button sellAllButton;
+        [SerializeField] private UnityEngine.UI.Text sellAllButtonText;
+        [SerializeField] private UnityEngine.UI.Button buyOneButton;
+        [SerializeField] private UnityEngine.UI.Text buyOneButtonText;
         [SerializeField] private UnityEngine.UI.Button closeBackpackButton;
 
-        [Header("Toast Notification")]
+        [Header("Toast & Drag Ghost")]
         [SerializeField] private GameObject toastBannerObject;
         [SerializeField] private UnityEngine.UI.Text toastText;
-
-        [Header("Drag Ghost")]
         [SerializeField] private RectTransform dragGhostRect;
         [SerializeField] private UnityEngine.UI.Image dragGhostImage;
 
         [SerializeField] private List<InventorySlotUI> slotUIs = new List<InventorySlotUI>();
 
-        private int inspectedSlotIndex = 0;
+        private int inspectedSlotIndex;
         private int draggedSlotIndex = -1;
         private float toastTimer;
 
@@ -49,6 +69,7 @@ namespace HappyFarmer.UI
         private Sprite slotBoxSprite;
         private Sprite selectionOutlineSprite;
         private Sprite buttonSprite;
+        private Sprite coinSprite;
 
         private void Awake()
         {
@@ -68,17 +89,16 @@ namespace HappyFarmer.UI
 
         private void OnDestroy()
         {
-            if (InventoryManager.Instance != null)
-            {
-                InventoryManager.Instance.OnInventoryChanged -= RefreshAll;
-                InventoryManager.Instance.OnSelectedHotbarChanged -= OnHotbarSelectionChanged;
-                InventoryManager.Instance.OnNotification -= ShowToast;
-            }
+            if (InventoryManager.Instance == null) return;
+            InventoryManager.Instance.OnInventoryChanged -= RefreshAll;
+            InventoryManager.Instance.OnSelectedHotbarChanged -= OnHotbarSelectionChanged;
+            InventoryManager.Instance.OnBalanceChanged -= OnBalanceChanged;
+            InventoryManager.Instance.OnNotification -= ShowToast;
         }
 
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.I) || Input.GetKeyDown(KeyCode.Tab) || Input.GetKeyDown(KeyCode.B))
+            if (Input.GetKeyDown(toggleKey) || Input.GetKeyDown(alternateToggleKey) || Input.GetKeyDown(KeyCode.B))
             {
                 ToggleBackpack();
             }
@@ -99,112 +119,104 @@ namespace HappyFarmer.UI
 
         private void ConnectToManager()
         {
-            var manager = InventoryManager.Instance;
-            if (manager == null)
+            var manager = InventoryManager.Instance ?? FindObjectOfType<InventoryManager>();
+            if (manager == null) return;
+
+            if (slotUIs.Count != manager.TotalSlotCount)
             {
-                manager = FindObjectOfType<InventoryManager>();
+                BuildUIHierarchy();
+                BindEvents();
             }
 
-            if (manager != null)
+            manager.OnInventoryChanged -= RefreshAll;
+            manager.OnSelectedHotbarChanged -= OnHotbarSelectionChanged;
+            manager.OnBalanceChanged -= OnBalanceChanged;
+            manager.OnNotification -= ShowToast;
+
+            manager.OnInventoryChanged += RefreshAll;
+            manager.OnSelectedHotbarChanged += OnHotbarSelectionChanged;
+            manager.OnBalanceChanged += OnBalanceChanged;
+            manager.OnNotification += ShowToast;
+
+            inspectedSlotIndex = manager.SelectedHotbarIndex;
+
+            if (bagButtonIcon != null)
             {
-                manager.OnInventoryChanged -= RefreshAll;
-                manager.OnSelectedHotbarChanged -= OnHotbarSelectionChanged;
-                manager.OnNotification -= ShowToast;
-
-                manager.OnInventoryChanged += RefreshAll;
-                manager.OnSelectedHotbarChanged += OnHotbarSelectionChanged;
-                manager.OnNotification += ShowToast;
-
-                inspectedSlotIndex = manager.SelectedHotbarIndex;
-
-                if (bagButtonIcon != null)
+                var crateSprite = manager.GetSprite("crate_open") ?? manager.GetSprite("crate");
+                if (crateSprite != null)
                 {
-                    var crateSprite = manager.GetSprite("crate_open") ?? manager.GetSprite("crate");
-                    if (crateSprite != null)
-                    {
-                        bagButtonIcon.sprite = crateSprite;
-                        bagButtonIcon.enabled = true;
-                    }
+                    bagButtonIcon.sprite = crateSprite;
+                    bagButtonIcon.enabled = true;
                 }
             }
         }
 
         private void BindEvents()
         {
-            if (bagToggleButton != null)
-            {
-                bagToggleButton.onClick.RemoveAllListeners();
-                bagToggleButton.onClick.AddListener(ToggleBackpack);
-            }
+            BindButton(bagToggleButton, ToggleBackpack);
+            BindButton(closeBackpackButton, () => SetBackpackOpen(false));
+            BindButton(useButton, () => ExecuteAndRefresh(m => m.UseSlotItem(inspectedSlotIndex)));
+            BindButton(dropButton, () => ExecuteAndRefresh(m => m.DropSlotItem(inspectedSlotIndex, 1)));
+            BindButton(sortButton, () => ExecuteAndRefresh(m => m.SortBackpack()));
+            BindButton(sellOneButton, () => ExecuteAndRefresh(m => m.SellSlotItem(inspectedSlotIndex, 1)));
+            BindButton(sellAllButton, () => ExecuteAndRefresh(m => m.SellAllInSlot(inspectedSlotIndex)));
+            BindButton(buyOneButton, OnBuyOneClicked);
 
-            if (closeBackpackButton != null)
-            {
-                closeBackpackButton.onClick.RemoveAllListeners();
-                closeBackpackButton.onClick.AddListener(() => SetBackpackOpen(false));
-            }
-
-            if (useButton != null)
-            {
-                useButton.onClick.RemoveAllListeners();
-                useButton.onClick.AddListener(OnUseClicked);
-            }
-
-            if (dropButton != null)
-            {
-                dropButton.onClick.RemoveAllListeners();
-                dropButton.onClick.AddListener(OnDropClicked);
-            }
-
-            if (sortButton != null)
-            {
-                sortButton.onClick.RemoveAllListeners();
-                sortButton.onClick.AddListener(OnSortClicked);
-            }
-
+            int hotbarCount = InventoryManager.HotbarSize;
             for (int i = 0; i < slotUIs.Count; i++)
             {
                 if (slotUIs[i] != null)
                 {
-                    slotUIs[i].BindRuntime(this, i, i < InventoryManager.HotbarSize);
+                    slotUIs[i].BindRuntime(this, i, i < hotbarCount);
                 }
             }
+        }
+
+        private static void BindButton(UnityEngine.UI.Button button, UnityEngine.Events.UnityAction action)
+        {
+            if (button == null) return;
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(action);
+        }
+
+        private void ExecuteAndRefresh(System.Action<InventoryManager> action)
+        {
+            var manager = InventoryManager.Instance;
+            if (manager == null) return;
+            action(manager);
+            RefreshAll();
+        }
+
+        private void OnBuyOneClicked()
+        {
+            var manager = InventoryManager.Instance;
+            var slot = manager != null ? manager.GetSlot(inspectedSlotIndex) : null;
+            if (slot == null || slot.IsEmpty) return;
+
+            manager.BuyItem(slot.itemId, 1);
+            RefreshAll();
         }
 
         public void ToggleBackpack()
         {
-            bool nextState = backpackModalRoot == null || !backpackModalRoot.activeSelf;
-            SetBackpackOpen(nextState);
+            SetBackpackOpen(backpackModalRoot == null || !backpackModalRoot.activeSelf);
         }
 
         public void SetBackpackOpen(bool open)
         {
-            if (backpackModalRoot != null)
-            {
-                backpackModalRoot.SetActive(open);
-            }
+            if (backpackModalRoot != null) backpackModalRoot.SetActive(open);
 
-            if (InventoryManager.Instance != null)
+            var manager = InventoryManager.Instance;
+            if (manager != null)
             {
-                if (!open)
+                var current = manager.GetSlot(inspectedSlotIndex);
+                if (!open || current == null || current.IsEmpty)
                 {
-                    inspectedSlotIndex = InventoryManager.Instance.SelectedHotbarIndex;
-                }
-                else
-                {
-                    var currentInspected = InventoryManager.Instance.GetSlot(inspectedSlotIndex);
-                    if (currentInspected == null || currentInspected.IsEmpty)
-                    {
-                        inspectedSlotIndex = InventoryManager.Instance.SelectedHotbarIndex;
-                    }
+                    inspectedSlotIndex = manager.SelectedHotbarIndex;
                 }
             }
 
-            if (!open && dragGhostRect != null)
-            {
-                dragGhostRect.gameObject.SetActive(false);
-                draggedSlotIndex = -1;
-            }
-
+            if (!open) OnSlotEndDrag();
             RefreshAll();
         }
 
@@ -213,6 +225,16 @@ namespace HappyFarmer.UI
             inspectedSlotIndex = hotbarIndex;
             RefreshAll();
         }
+
+        private void OnBalanceChanged(int _)
+        {
+            RefreshCurrencyUI();
+            if (InventoryManager.Instance != null) RefreshDetailsPanel(InventoryManager.Instance);
+        }
+
+        // =====================================================================
+        // SLOT POINTER & DRAG EVENTS
+        // =====================================================================
 
         public void OnSlotLeftClicked(int slotIndex, bool isHotbar)
         {
@@ -226,11 +248,7 @@ namespace HappyFarmer.UI
                 return;
             }
 
-            if (isHotbar)
-            {
-                manager.SelectHotbarSlot(slotIndex);
-            }
-
+            if (isHotbar) manager.SelectHotbarSlot(slotIndex);
             inspectedSlotIndex = slotIndex;
             RefreshAll();
         }
@@ -239,7 +257,6 @@ namespace HappyFarmer.UI
         {
             var manager = InventoryManager.Instance;
             if (manager == null) return;
-
             inspectedSlotIndex = manager.QuickMoveSlot(slotIndex);
             RefreshAll();
         }
@@ -247,12 +264,8 @@ namespace HappyFarmer.UI
         public void OnSlotBeginDrag(int slotIndex, PointerEventData eventData)
         {
             var manager = InventoryManager.Instance;
-            if (manager == null) return;
-
-            var slot = manager.GetSlot(slotIndex);
-            if (slot == null || slot.IsEmpty) return;
-
-            var data = manager.GetItemData(slot.itemId);
+            var slot = manager != null ? manager.GetSlot(slotIndex) : null;
+            var data = (slot != null && !slot.IsEmpty) ? manager.GetItemData(slot.itemId) : null;
             if (data == null || data.icon == null) return;
 
             draggedSlotIndex = slotIndex;
@@ -267,68 +280,44 @@ namespace HappyFarmer.UI
 
         public void OnSlotDrag(PointerEventData eventData)
         {
-            if (draggedSlotIndex < 0 || dragGhostRect == null) return;
-            dragGhostRect.position = eventData.position;
+            if (draggedSlotIndex >= 0 && dragGhostRect != null)
+            {
+                dragGhostRect.position = eventData.position;
+            }
         }
 
         public void OnSlotEndDrag()
         {
             draggedSlotIndex = -1;
-            if (dragGhostRect != null)
-            {
-                dragGhostRect.gameObject.SetActive(false);
-            }
+            if (dragGhostRect != null) dragGhostRect.gameObject.SetActive(false);
         }
 
         public void OnSlotDrop(int targetSlotIndex)
         {
-            if (draggedSlotIndex < 0) return;
-
             var manager = InventoryManager.Instance;
-            if (manager != null && draggedSlotIndex != targetSlotIndex)
+            if (draggedSlotIndex >= 0 && manager != null && draggedSlotIndex != targetSlotIndex)
             {
                 manager.SwapOrMergeSlots(draggedSlotIndex, targetSlotIndex);
                 inspectedSlotIndex = targetSlotIndex;
-                if (targetSlotIndex < InventoryManager.HotbarSize)
+                if (targetSlotIndex < manager.HotbarSlotCount)
                 {
                     manager.SelectHotbarSlot(targetSlotIndex);
                 }
             }
-
             OnSlotEndDrag();
             RefreshAll();
         }
 
-        private void OnUseClicked()
-        {
-            var manager = InventoryManager.Instance;
-            if (manager == null) return;
-            manager.UseSlotItem(inspectedSlotIndex);
-            RefreshAll();
-        }
-
-        private void OnDropClicked()
-        {
-            var manager = InventoryManager.Instance;
-            if (manager == null) return;
-            manager.DropSlotItem(inspectedSlotIndex, 1);
-            RefreshAll();
-        }
-
-        private void OnSortClicked()
-        {
-            var manager = InventoryManager.Instance;
-            if (manager == null) return;
-            manager.SortBackpack();
-            RefreshAll();
-        }
+        // =====================================================================
+        // UI REFRESH
+        // =====================================================================
 
         public void ShowToast(string message)
         {
             if (toastBannerObject == null || toastText == null) return;
             toastText.text = message;
             toastBannerObject.SetActive(true);
-            toastTimer = 2.8f;
+            toastTimer = toastDuration;
         }
 
         public void RefreshAll()
@@ -338,34 +327,31 @@ namespace HappyFarmer.UI
 
             bool isBagOpen = backpackModalRoot != null && backpackModalRoot.activeSelf;
 
-            for (int i = 0; i < slotUIs.Count && i < InventoryManager.TotalSlots; i++)
+            for (int i = 0; i < slotUIs.Count && i < manager.TotalSlotCount; i++)
             {
                 var slotUI = slotUIs[i];
                 if (slotUI == null) continue;
 
                 var slot = manager.GetSlot(i);
-                Sprite icon = null;
-                int count = 0;
+                var data = (slot != null && !slot.IsEmpty) ? manager.GetItemData(slot.itemId) : null;
+                bool isSelected = i == (isBagOpen ? inspectedSlotIndex : manager.SelectedHotbarIndex);
 
-                if (slot != null && !slot.IsEmpty)
-                {
-                    var data = manager.GetItemData(slot.itemId);
-                    if (data != null)
-                    {
-                        icon = data.icon;
-                        count = slot.count;
-                    }
-                }
-
-                bool isSelected = isBagOpen
-                    ? (i == inspectedSlotIndex)
-                    : (i == manager.SelectedHotbarIndex);
-
-                slotUI.Refresh(icon, count, isSelected);
+                slotUI.Refresh(data?.icon, data != null ? slot.count : 0, isSelected);
             }
 
+            RefreshCurrencyUI();
             RefreshHotbarHeader(manager);
             RefreshDetailsPanel(manager);
+        }
+
+        private void RefreshCurrencyUI()
+        {
+            var manager = InventoryManager.Instance;
+            if (manager == null) return;
+
+            string formatted = manager.FormatCurrency(manager.CurrentBalance);
+            if (hudCoinText != null) hudCoinText.text = formatted;
+            if (modalCoinText != null) modalCoinText.text = formatted;
         }
 
         private void RefreshHotbarHeader(InventoryManager manager)
@@ -373,26 +359,16 @@ namespace HappyFarmer.UI
             if (activeItemLabel == null) return;
 
             var slot = manager.GetSlot(manager.SelectedHotbarIndex);
-            if (slot == null || slot.IsEmpty)
-            {
-                activeItemLabel.text = "Tay không  •  [E] Thu hoạch / Hái lượm   [I] Mở Túi Đồ";
-                return;
-            }
+            var data = (slot != null && !slot.IsEmpty) ? manager.GetItemData(slot.itemId) : null;
 
-            var data = manager.GetItemData(slot.itemId);
             if (data == null)
             {
-                activeItemLabel.text = "Tay không  •  [I] Mở Túi Đồ";
+                activeItemLabel.text = $"Tay không  •  [E] Thu hoạch / Hái lượm   [{toggleKey}] Mở Túi Đồ & Bán Hàng";
                 return;
             }
 
-            string actionHint = data.category == ItemCategory.Seed
-                ? "[E] Gieo hạt"
-                : (data.category == ItemCategory.Produce || data.category == ItemCategory.Forage)
-                    ? "[E] Sử dụng"
-                    : "[E] Đặt ra đất";
-
-            activeItemLabel.text = $"{data.displayName} (x{slot.count})   •   {actionHint}   [Q] Thả   [I] Túi Đồ";
+            string priceInfo = data.CanSell ? $"  |  Giá bán: {manager.FormatCurrency(data.sellPrice)}" : string.Empty;
+            activeItemLabel.text = $"{data.displayName} (x{slot.count}){priceInfo}   •   [E] {data.GetActionLabel()}   [{toggleKey}] Túi Đồ";
         }
 
         private void RefreshDetailsPanel(InventoryManager manager)
@@ -404,24 +380,24 @@ namespace HappyFarmer.UI
 
             if (data == null)
             {
-                if (detailIconImage != null)
-                {
-                    detailIconImage.sprite = null;
-                    detailIconImage.enabled = false;
-                }
+                if (detailIconImage != null) detailIconImage.enabled = false;
                 detailNameText.text = "Ô Trống";
                 if (detailCategoryText != null) detailCategoryText.text = "Chưa có vật phẩm";
                 if (detailCountText != null) detailCountText.text = "Số lượng: 0";
+                if (detailPriceText != null) detailPriceText.text = "Mệnh giá: —";
                 if (detailDescriptionText != null)
                 {
                     detailDescriptionText.text =
-                        "Hãy chọn một vật phẩm trong túi đồ hoặc thanh công cụ để xem thông tin.\n\n" +
-                        "• Kéo & Thả chuột trái để đổi chỗ vật phẩm.\n" +
-                        "• Nhấp Chuột Phải (hoặc Shift+Click) để chuyển nhanh giữa Thanh Công Cụ và Túi Đồ.";
+                        "Hãy chọn một vật phẩm trong túi đồ hoặc thanh công cụ để xem mệnh giá và bán hàng.\n\n" +
+                        "• Chọn vật phẩm rồi bấm [Bán 1] hoặc [Bán Hết] để nhận Xu ngay tại Túi Đồ.\n" +
+                        "• Kéo & Thả chuột trái để đổi chỗ, Chuột Phải để chuyển nhanh.";
                 }
-                if (useButton != null) useButton.interactable = false;
+
+                SetButtonState(useButton, useButtonText, false, "Sử Dụng");
                 if (dropButton != null) dropButton.interactable = false;
-                if (useButtonText != null) useButtonText.text = "Sử Dụng";
+                SetButtonState(sellOneButton, sellOneButtonText, false, "Bán 1");
+                SetButtonState(sellAllButton, sellAllButtonText, false, "Bán Hết");
+                if (buyOneButton != null) buyOneButton.gameObject.SetActive(false);
                 return;
             }
 
@@ -433,91 +409,106 @@ namespace HappyFarmer.UI
             }
 
             detailNameText.text = data.displayName;
-            if (detailCategoryText != null)
-                detailCategoryText.text = $"Phân loại: {data.GetCategoryDisplayName()}";
-            if (detailCountText != null)
-                detailCountText.text = $"Số lượng: {slot.count} / {data.maxStack}";
-            if (detailDescriptionText != null)
-                detailDescriptionText.text = data.description;
+            if (detailCategoryText != null) detailCategoryText.text = $"Phân loại: {data.GetCategoryDisplayName()}";
+            if (detailCountText != null) detailCountText.text = $"Số lượng: {slot.count} / {data.maxStack}";
+            if (detailDescriptionText != null) detailDescriptionText.text = data.description;
 
-            if (useButton != null) useButton.interactable = true;
+            int stackValue = slot.count * data.sellPrice;
+            if (detailPriceText != null)
+            {
+                if (data.CanSell && data.CanBuy)
+                    detailPriceText.text = $"Giá bán: {manager.FormatCurrency(data.sellPrice)}/món  •  Mua: {manager.FormatCurrency(data.buyPrice)}";
+                else if (data.CanSell)
+                    detailPriceText.text = $"Giá bán: {manager.FormatCurrency(data.sellPrice)} / món  (Tổng: {manager.FormatCurrency(stackValue)})";
+                else
+                    detailPriceText.text = "Không thể bán";
+            }
+
+            SetButtonState(useButton, useButtonText, true, data.GetActionLabel());
             if (dropButton != null) dropButton.interactable = true;
 
-            if (useButtonText != null)
+            SetButtonState(sellOneButton, sellOneButtonText, data.CanSell,
+                data.CanSell ? $"Bán 1 (+{manager.FormatCurrency(data.sellPrice)})" : "Không Bán");
+            SetButtonState(sellAllButton, sellAllButtonText, data.CanSell,
+                data.CanSell ? $"Bán Hết (+{manager.FormatCurrency(stackValue)})" : "Bán Hết");
+
+            if (buyOneButton != null)
             {
-                useButtonText.text = data.category == ItemCategory.Seed
-                    ? "Gieo Hạt"
-                    : (data.category == ItemCategory.Produce || data.category == ItemCategory.Forage)
-                        ? "Sử Dụng"
-                        : "Đặt Ra";
+                buyOneButton.gameObject.SetActive(data.CanBuy);
+                if (data.CanBuy)
+                {
+                    SetButtonState(buyOneButton, buyOneButtonText,
+                        manager.CurrentBalance >= data.buyPrice,
+                        $"Mua +1 (-{manager.FormatCurrency(data.buyPrice)})");
+                }
             }
         }
 
+        private static void SetButtonState(UnityEngine.UI.Button btn, UnityEngine.UI.Text label, bool interactable, string text)
+        {
+            if (btn != null) btn.interactable = interactable;
+            if (label != null) label.text = text;
+        }
+
         // =====================================================================
-        // XÂY DỰNG CẤU TRÚC UI THEO PHONG CÁCH NÔNG TRẠI GỖ ẤM ÁP (uGUI)
+        // DYNAMIC UI HIERARCHY BUILDER
         // =====================================================================
 
         public void EnsureUIHierarchy()
         {
-            if (hotbarRoot != null && backpackModalRoot != null && slotUIs.Count == InventoryManager.TotalSlots)
+            if (hotbarRoot != null &&
+                backpackModalRoot != null &&
+                slotUIs.Count == InventoryManager.TotalSlots &&
+                sellOneButton != null &&
+                hudCoinText != null)
             {
                 ApplyProceduralSpritesToExistingUI();
                 return;
             }
-
             BuildUIHierarchy();
         }
 
         public void BuildUIHierarchy()
         {
-            if (Application.isPlaying)
-            {
-                GenerateThemeSprites();
-            }
+            if (Application.isPlaying) GenerateThemeSprites();
 
-            // Xóa các con cũ nếu đang rebuild
             for (int i = transform.childCount - 1; i >= 0; i--)
             {
-                if (Application.isPlaying)
-                    Destroy(transform.GetChild(i).gameObject);
-                else
-                    DestroyImmediate(transform.GetChild(i).gameObject);
+                if (Application.isPlaying) Destroy(transform.GetChild(i).gameObject);
+                else DestroyImmediate(transform.GetChild(i).gameObject);
             }
             slotUIs.Clear();
 
-            Font font = GetDefaultFont();
+            Font font = Resources.GetBuiltinResource<Font>("Arial.ttf")
+                        ?? Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-            // 1. Toast Notification (Góc trên giữa màn hình)
+            BuildHudCoinBadge(font);
             BuildToastBanner(font);
-
-            // 2. Thanh Hotbar bên dưới màn hình (8 ô + Nút Mở Túi Đồ)
             BuildHotbarSection(font);
-
-            // 3. Cửa sổ Túi Đồ Nông Trại (Chính giữa màn hình)
             BuildBackpackModalSection(font);
-
-            // 4. Icon kéo thả (Drag Ghost)
             BuildDragGhost();
 
-            if (Application.isPlaying)
-            {
-                ApplyProceduralSpritesToExistingUI();
-            }
+            if (Application.isPlaying) ApplyProceduralSpritesToExistingUI();
+        }
+
+        private void BuildHudCoinBadge(Font font)
+        {
+            hudCoinBadge = CreateBox("HudCoinBadge", transform, new Color(0.44f, 0.27f, 0.15f, 0.96f), false, out var rect);
+            SetAnchor(rect, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-20f, -20f), new Vector2(190f, 48f));
+
+            CreateBox("CoinIcon", hudCoinBadge.transform, new Color(1f, 0.84f, 0.18f, 1f), false, out var iconRect, out hudCoinIcon);
+            hudCoinIcon.preserveAspect = true;
+            SetAnchor(iconRect, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(12f, 0f), new Vector2(28f, 28f));
+
+            hudCoinText = CreateText("HudCoinText", hudCoinBadge.transform, font, 19, FontStyle.Bold,
+                new Color(1f, 0.94f, 0.65f, 1f), TextAnchor.MiddleRight, "100 Xu");
+            SetStretchOffsets(hudCoinText.rectTransform, 46f, 4f, -14f, -4f);
         }
 
         private void BuildToastBanner(Font font)
         {
-            toastBannerObject = CreateUIObject("ToastBanner", transform);
-            var rect = toastBannerObject.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, -24f);
-            rect.sizeDelta = new Vector2(520f, 46f);
-
-            var bg = toastBannerObject.AddComponent<UnityEngine.UI.Image>();
-            bg.color = new Color(0.36f, 0.22f, 0.13f, 0.96f);
-            bg.raycastTarget = false;
+            toastBannerObject = CreateBox("ToastBanner", transform, new Color(0.36f, 0.22f, 0.13f, 0.96f), false, out var rect);
+            SetAnchor(rect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(540f, 46f));
 
             toastText = CreateText("ToastText", toastBannerObject.transform, font, 18, FontStyle.Bold,
                 new Color(1f, 0.96f, 0.84f, 1f), TextAnchor.MiddleCenter);
@@ -526,53 +517,25 @@ namespace HappyFarmer.UI
 
         private void BuildHotbarSection(Font font)
         {
-            hotbarRoot = CreateUIObject("HotbarSection", transform);
-            var rootRect = hotbarRoot.GetComponent<RectTransform>();
-            rootRect.anchorMin = new Vector2(0.5f, 0f);
-            rootRect.anchorMax = new Vector2(0.5f, 0f);
-            rootRect.pivot = new Vector2(0.5f, 0f);
-            rootRect.anchoredPosition = new Vector2(0f, 16f);
-            rootRect.sizeDelta = new Vector2(720f, 128f);
+            int hotbarCount = InventoryManager.HotbarSize;
 
-            // Dải băng gỗ hiển thị tên vật phẩm đang cầm
-            var ribbonObj = CreateUIObject("ActiveItemRibbon", hotbarRoot.transform);
-            var ribbonRect = ribbonObj.GetComponent<RectTransform>();
-            ribbonRect.anchorMin = new Vector2(0.5f, 1f);
-            ribbonRect.anchorMax = new Vector2(0.5f, 1f);
-            ribbonRect.pivot = new Vector2(0.5f, 1f);
-            ribbonRect.anchoredPosition = new Vector2(0f, 0f);
-            ribbonRect.sizeDelta = new Vector2(620f, 34f);
+            hotbarRoot = CreateUIObject("HotbarSection", transform, out var rootRect);
+            SetAnchor(rootRect, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 16f), new Vector2(720f, 128f));
 
-            var ribbonImg = ribbonObj.AddComponent<UnityEngine.UI.Image>();
-            ribbonImg.color = new Color(0.42f, 0.26f, 0.15f, 0.94f);
-            ribbonImg.raycastTarget = false;
+            var ribbonObj = CreateBox("ActiveItemRibbon", hotbarRoot.transform, new Color(0.42f, 0.26f, 0.15f, 0.94f), false, out var ribbonRect);
+            SetAnchor(ribbonRect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), Vector2.zero, new Vector2(640f, 34f));
 
             activeItemLabel = CreateText("ActiveItemLabel", ribbonObj.transform, font, 15, FontStyle.Bold,
                 new Color(0.99f, 0.94f, 0.80f, 1f), TextAnchor.MiddleCenter);
             StretchFull(activeItemLabel.rectTransform, 12f, 4f);
 
-            // Khung gỗ chính của Hotbar
-            var barFrame = CreateUIObject("HotbarWoodFrame", hotbarRoot.transform);
-            var barRect = barFrame.GetComponent<RectTransform>();
-            barRect.anchorMin = new Vector2(0.5f, 0f);
-            barRect.anchorMax = new Vector2(0.5f, 0f);
-            barRect.pivot = new Vector2(0.5f, 0f);
-            barRect.anchoredPosition = new Vector2(-46f, 0f);
-            barRect.sizeDelta = new Vector2(616f, 84f);
+            var barFrame = CreateBox("HotbarWoodFrame", hotbarRoot.transform, new Color(0.54f, 0.34f, 0.20f, 1f), true, out var barRect);
+            SetAnchor(barRect, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-46f, 0f), new Vector2(616f, 84f));
 
-            var barBg = barFrame.AddComponent<UnityEngine.UI.Image>();
-            barBg.color = new Color(0.54f, 0.34f, 0.20f, 1f);
-            barBg.raycastTarget = true;
-
-            var innerBar = CreateUIObject("HotbarInner", barFrame.transform);
-            var innerBarRect = innerBar.GetComponent<RectTransform>();
+            var innerBar = CreateBox("HotbarInner", barFrame.transform, new Color(0.75f, 0.58f, 0.38f, 1f), false, out var innerBarRect);
             StretchFull(innerBarRect, 8f, 8f);
-            var innerBarImg = innerBar.AddComponent<UnityEngine.UI.Image>();
-            innerBarImg.color = new Color(0.75f, 0.58f, 0.38f, 1f);
-            innerBarImg.raycastTarget = false;
 
-            var slotsHolder = CreateUIObject("HotbarSlots", innerBar.transform);
-            hotbarSlotsContainer = slotsHolder.GetComponent<RectTransform>();
+            var slotsHolder = CreateUIObject("HotbarSlots", innerBar.transform, out hotbarSlotsContainer);
             StretchFull(hotbarSlotsContainer, 6f, 4f);
 
             var hlg = slotsHolder.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
@@ -584,322 +547,173 @@ namespace HappyFarmer.UI
             hlg.childForceExpandWidth = true;
             hlg.childForceExpandHeight = true;
 
-            for (int i = 0; i < InventoryManager.HotbarSize; i++)
+            for (int i = 0; i < hotbarCount; i++)
             {
-                var slotUI = CreateSlotElement($"HotbarSlot_{i + 1}", hotbarSlotsContainer, font, i, true);
-                slotUIs.Add(slotUI);
+                slotUIs.Add(CreateSlotElement($"HotbarSlot_{i + 1}", hotbarSlotsContainer, font, i, true));
             }
 
-            // Nút Túi Đồ bên phải Hotbar
-            var bagBtnObj = CreateUIObject("BagButton", hotbarRoot.transform);
-            var bagBtnRect = bagBtnObj.GetComponent<RectTransform>();
-            bagBtnRect.anchorMin = new Vector2(0.5f, 0f);
-            bagBtnRect.anchorMax = new Vector2(0.5f, 0f);
-            bagBtnRect.pivot = new Vector2(0.5f, 0f);
-            bagBtnRect.anchoredPosition = new Vector2(314f, 0f);
-            bagBtnRect.sizeDelta = new Vector2(88f, 84f);
-
-            var bagBtnImg = bagBtnObj.AddComponent<UnityEngine.UI.Image>();
-            bagBtnImg.color = new Color(0.62f, 0.39f, 0.22f, 1f);
-            bagBtnImg.raycastTarget = true;
-
+            var bagBtnObj = CreateBox("BagButton", hotbarRoot.transform, new Color(0.62f, 0.39f, 0.22f, 1f), true, out var bagBtnRect, out var bagBtnImg);
+            SetAnchor(bagBtnRect, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(314f, 0f), new Vector2(88f, 84f));
             bagToggleButton = bagBtnObj.AddComponent<UnityEngine.UI.Button>();
             bagToggleButton.targetGraphic = bagBtnImg;
 
-            var iconObj = CreateUIObject("CrateIcon", bagBtnObj.transform);
-            var iconRect = iconObj.GetComponent<RectTransform>();
-            iconRect.anchorMin = new Vector2(0.5f, 0.5f);
-            iconRect.anchorMax = new Vector2(0.5f, 0.5f);
-            iconRect.pivot = new Vector2(0.5f, 0.5f);
-            iconRect.anchoredPosition = new Vector2(0f, 10f);
-            iconRect.sizeDelta = new Vector2(40f, 40f);
-
-            bagButtonIcon = iconObj.AddComponent<UnityEngine.UI.Image>();
+            CreateBox("CrateIcon", bagBtnObj.transform, Color.white, false, out var iconRect, out bagButtonIcon);
             bagButtonIcon.preserveAspect = true;
-            bagButtonIcon.raycastTarget = false;
+            SetAnchor(iconRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), new Vector2(40f, 40f));
 
 #if UNITY_EDITOR
-            var cratePreview = FindEditorSprite("crate_open") ?? FindEditorSprite("crate");
-            if (cratePreview != null)
-            {
-                bagButtonIcon.sprite = cratePreview;
-            }
+            bagButtonIcon.sprite = FindEditorSprite("crate_open") ?? FindEditorSprite("crate");
 #endif
 
             var bagLabel = CreateText("BagLabel", bagBtnObj.transform, font, 13, FontStyle.Bold,
-                new Color(1f, 0.95f, 0.82f, 1f), TextAnchor.LowerCenter);
+                new Color(1f, 0.95f, 0.82f, 1f), TextAnchor.LowerCenter, $"TÚI ĐỒ [{toggleKey}]");
             StretchFull(bagLabel.rectTransform, 4f, 6f);
-            bagLabel.text = "TÚI ĐỒ [I]";
         }
 
         private void BuildBackpackModalSection(Font font)
         {
-            backpackModalRoot = CreateUIObject("BackpackModal", transform);
-            var modalRect = backpackModalRoot.GetComponent<RectTransform>();
-            modalRect.anchorMin = Vector2.zero;
-            modalRect.anchorMax = Vector2.one;
-            modalRect.offsetMin = Vector2.zero;
-            modalRect.offsetMax = Vector2.zero;
+            int hotbarCount = InventoryManager.HotbarSize;
+            int backpackCount = InventoryManager.BackpackSize;
 
-            // Lớp nền mờ nhẹ phía sau
-            var dimBg = backpackModalRoot.AddComponent<UnityEngine.UI.Image>();
-            dimBg.color = new Color(0.08f, 0.05f, 0.03f, 0.48f);
-            dimBg.raycastTarget = true;
+            backpackModalRoot = CreateBox("BackpackModal", transform, new Color(0.08f, 0.05f, 0.03f, 0.48f), true, out var modalRect);
+            StretchFull(modalRect, 0f, 0f);
 
-            // Khung bảng gỗ chính
-            var windowObj = CreateUIObject("InventoryWindow", backpackModalRoot.transform);
-            var winRect = windowObj.GetComponent<RectTransform>();
-            winRect.anchorMin = new Vector2(0.5f, 0.5f);
-            winRect.anchorMax = new Vector2(0.5f, 0.5f);
-            winRect.pivot = new Vector2(0.5f, 0.5f);
-            winRect.anchoredPosition = new Vector2(0f, 38f);
-            winRect.sizeDelta = new Vector2(760f, 470f);
+            var windowObj = CreateBox("InventoryWindow", backpackModalRoot.transform, new Color(0.51f, 0.32f, 0.18f, 1f), true, out var winRect);
+            SetAnchor(winRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(800f, 500f));
 
-            var winBg = windowObj.AddComponent<UnityEngine.UI.Image>();
-            winBg.color = new Color(0.51f, 0.32f, 0.18f, 1f);
-            winBg.raycastTarget = true;
-
-            // Nền giấy da kem bên trong
-            var parchmentObj = CreateUIObject("ParchmentBody", windowObj.transform);
-            var parchmentRect = parchmentObj.GetComponent<RectTransform>();
+            var parchmentObj = CreateBox("ParchmentBody", windowObj.transform, new Color(0.95f, 0.89f, 0.76f, 1f), false, out var parchmentRect);
             StretchFull(parchmentRect, 14f, 14f);
-            var parchmentImg = parchmentObj.AddComponent<UnityEngine.UI.Image>();
-            parchmentImg.color = new Color(0.95f, 0.89f, 0.76f, 1f);
-            parchmentImg.raycastTarget = false;
 
-            // Thanh tiêu đề gỗ phía trên
-            var headerObj = CreateUIObject("HeaderBanner", parchmentObj.transform);
-            var headerRect = headerObj.GetComponent<RectTransform>();
-            headerRect.anchorMin = new Vector2(0f, 1f);
-            headerRect.anchorMax = new Vector2(1f, 1f);
-            headerRect.pivot = new Vector2(0.5f, 1f);
-            headerRect.anchoredPosition = new Vector2(0f, -8f);
-            headerRect.sizeDelta = new Vector2(-20f, 52f);
+            // Header Banner
+            var headerObj = CreateBox("HeaderBanner", parchmentObj.transform, new Color(0.44f, 0.27f, 0.15f, 1f), false, out var headerRect);
+            SetAnchor(headerRect, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -8f), new Vector2(-20f, 52f));
 
-            var headerImg = headerObj.AddComponent<UnityEngine.UI.Image>();
-            headerImg.color = new Color(0.44f, 0.27f, 0.15f, 1f);
-            headerImg.raycastTarget = false;
+            var titleText = CreateText("TitleText", headerObj.transform, font, 21, FontStyle.Bold,
+                new Color(1f, 0.94f, 0.78f, 1f), TextAnchor.MiddleLeft, "TÚI ĐỒ & QUẦY BÁN HÀNG NÔNG TRẠI");
+            StretchFull(titleText.rectTransform, 18f, 6f);
 
-            var titleText = CreateText("TitleText", headerObj.transform, font, 22, FontStyle.Bold,
-                new Color(1f, 0.94f, 0.78f, 1f), TextAnchor.MiddleLeft);
-            StretchFull(titleText.rectTransform, 20f, 6f);
-            titleText.text = "TÚI ĐỒ NÔNG TRẠI  —  LITTLE DREAMYLAND";
+            var modalCoinBox = CreateBox("ModalCoinBox", headerObj.transform, new Color(0.28f, 0.16f, 0.08f, 0.95f), false, out var modalCoinRect);
+            SetAnchor(modalCoinRect, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-58f, 0f), new Vector2(170f, 36f));
 
-            // Nút Đóng [X]
-            closeBackpackButton = CreateStyledButton(
-                "CloseButton",
-                headerObj.transform,
-                font,
-                "X",
-                new Color(0.78f, 0.31f, 0.27f, 1f),
-                new Vector2(1f, 0.5f),
-                new Vector2(1f, 0.5f),
-                new Vector2(1f, 0.5f),
-                new Vector2(-10f, 0f),
-                new Vector2(38f, 36f),
-                18);
+            CreateBox("CoinIcon", modalCoinBox.transform, new Color(1f, 0.84f, 0.18f, 1f), false, out var modalCoinIconRect, out modalCoinIcon);
+            modalCoinIcon.preserveAspect = true;
+            SetAnchor(modalCoinIconRect, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(10f, 0f), new Vector2(22f, 22f));
 
-            // Cột trái: Lưới 16 ô (4x4)
-            var leftPanel = CreateUIObject("BackpackGridPanel", parchmentObj.transform);
-            var leftRect = leftPanel.GetComponent<RectTransform>();
+            modalCoinText = CreateText("ModalCoinText", modalCoinBox.transform, font, 16, FontStyle.Bold,
+                new Color(1f, 0.92f, 0.55f, 1f), TextAnchor.MiddleRight, "100 Xu");
+            SetStretchOffsets(modalCoinText.rectTransform, 36f, 2f, -10f, -2f);
+
+            closeBackpackButton = CreateAnchoredButton("CloseButton", headerObj.transform, font, "X",
+                new Color(0.78f, 0.31f, 0.27f, 1f), new Vector2(1f, 0.5f), new Vector2(-10f, 0f), new Vector2(38f, 36f), 18);
+
+            // Left Column: Backpack Slots Grid
+            var leftPanel = CreateBox("BackpackGridPanel", parchmentObj.transform, new Color(0.82f, 0.69f, 0.49f, 1f), false, out var leftRect);
             leftRect.anchorMin = new Vector2(0f, 0f);
             leftRect.anchorMax = new Vector2(0f, 1f);
             leftRect.pivot = new Vector2(0f, 0.5f);
-            leftRect.offsetMin = new Vector2(14f, 14f);
-            leftRect.offsetMax = new Vector2(394f, -68f);
-
-            var leftBg = leftPanel.AddComponent<UnityEngine.UI.Image>();
-            leftBg.color = new Color(0.82f, 0.69f, 0.49f, 1f);
-            leftBg.raycastTarget = false;
+            SetStretchOffsets(leftRect, 14f, 14f, 394f, -68f);
 
             var gridTitle = CreateText("GridSubtitle", leftPanel.transform, font, 14, FontStyle.Bold,
-                new Color(0.32f, 0.19f, 0.10f, 1f), TextAnchor.MiddleLeft);
-            gridTitle.rectTransform.anchorMin = new Vector2(0f, 1f);
-            gridTitle.rectTransform.anchorMax = new Vector2(1f, 1f);
-            gridTitle.rectTransform.pivot = new Vector2(0.5f, 1f);
-            gridTitle.rectTransform.anchoredPosition = new Vector2(0f, -6f);
-            gridTitle.rectTransform.sizeDelta = new Vector2(-20f, 24f);
-            gridTitle.text = "NGĂN CHỨA ĐỒ (16 Ô)  •  Chuột phải: Chuyển nhanh";
+                new Color(0.32f, 0.19f, 0.10f, 1f), TextAnchor.MiddleLeft,
+                $"NGĂN CHỨA ĐỒ ({backpackCount} Ô)  •  Chuột phải: Chuyển nhanh");
+            SetAnchor(gridTitle.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -6f), new Vector2(-20f, 24f));
 
-            var gridContainerObj = CreateUIObject("SlotsGrid", leftPanel.transform);
-            backpackSlotsContainer = gridContainerObj.GetComponent<RectTransform>();
-            backpackSlotsContainer.anchorMin = Vector2.zero;
-            backpackSlotsContainer.anchorMax = Vector2.one;
-            backpackSlotsContainer.offsetMin = new Vector2(14f, 12f);
-            backpackSlotsContainer.offsetMax = new Vector2(-14f, -34f);
+            var gridContainerObj = CreateUIObject("SlotsGrid", leftPanel.transform, out backpackSlotsContainer);
+            SetStretchOffsets(backpackSlotsContainer, 14f, 12f, -14f, -34f);
 
             var grid = gridContainerObj.AddComponent<UnityEngine.UI.GridLayoutGroup>();
-            grid.cellSize = new Vector2(78f, 72f);
-            grid.spacing = new Vector2(10f, 8f);
-            grid.startCorner = UnityEngine.UI.GridLayoutGroup.Corner.UpperLeft;
-            grid.startAxis = UnityEngine.UI.GridLayoutGroup.Axis.Horizontal;
+            grid.cellSize = new Vector2(78f, 76f);
+            grid.spacing = new Vector2(10f, 10f);
             grid.childAlignment = TextAnchor.MiddleCenter;
             grid.constraint = UnityEngine.UI.GridLayoutGroup.Constraint.FixedColumnCount;
-            grid.constraintCount = 4;
+            grid.constraintCount = Mathf.Max(1, backpackGridColumns);
 
-            for (int i = 0; i < InventoryManager.BackpackSize; i++)
+            for (int i = 0; i < backpackCount; i++)
             {
-                int slotIdx = InventoryManager.HotbarSize + i;
-                var slotUI = CreateSlotElement($"BackpackSlot_{i + 1}", backpackSlotsContainer, font, slotIdx, false);
-                slotUIs.Add(slotUI);
+                slotUIs.Add(CreateSlotElement($"BackpackSlot_{i + 1}", backpackSlotsContainer, font, hotbarCount + i, false));
             }
 
-            // Cột phải: Chi tiết vật phẩm & Nút thao tác
-            var rightPanel = CreateUIObject("ItemDetailsPanel", parchmentObj.transform);
-            var rightRect = rightPanel.GetComponent<RectTransform>();
-            rightRect.anchorMin = new Vector2(0f, 0f);
-            rightRect.anchorMax = new Vector2(1f, 1f);
-            rightRect.pivot = new Vector2(1f, 0.5f);
-            rightRect.offsetMin = new Vector2(406f, 14f);
-            rightRect.offsetMax = new Vector2(-14f, -68f);
+            // Right Column: Item Details & Economy Actions
+            var rightPanel = CreateBox("ItemDetailsPanel", parchmentObj.transform, new Color(0.89f, 0.80f, 0.63f, 1f), false, out var rightRect);
+            SetStretchOffsets(rightRect, 406f, 14f, -14f, -68f);
 
-            var rightBg = rightPanel.AddComponent<UnityEngine.UI.Image>();
-            rightBg.color = new Color(0.89f, 0.80f, 0.63f, 1f);
-            rightBg.raycastTarget = false;
+            var previewBox = CreateBox("IconPreviewBox", rightPanel.transform, new Color(0.96f, 0.90f, 0.76f, 1f), false, out var previewRect);
+            SetAnchor(previewRect, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(16f, -14f), new Vector2(84f, 84f));
 
-            // Khung hiển thị Icon lớn + Tên vật phẩm
-            var previewBox = CreateUIObject("IconPreviewBox", rightPanel.transform);
-            var previewRect = previewBox.GetComponent<RectTransform>();
-            previewRect.anchorMin = new Vector2(0f, 1f);
-            previewRect.anchorMax = new Vector2(0f, 1f);
-            previewRect.pivot = new Vector2(0f, 1f);
-            previewRect.anchoredPosition = new Vector2(16f, -16f);
-            previewRect.sizeDelta = new Vector2(84f, 84f);
-
-            var previewBg = previewBox.AddComponent<UnityEngine.UI.Image>();
-            previewBg.color = new Color(0.96f, 0.90f, 0.76f, 1f);
-            previewBg.raycastTarget = false;
-
-            var detailIconObj = CreateUIObject("DetailIcon", previewBox.transform);
-            var detailIconRect = detailIconObj.GetComponent<RectTransform>();
-            StretchFull(detailIconRect, 12f, 12f);
-            detailIconImage = detailIconObj.AddComponent<UnityEngine.UI.Image>();
+            CreateBox("DetailIcon", previewBox.transform, Color.white, false, out var detailIconRect, out detailIconImage);
             detailIconImage.preserveAspect = true;
-            detailIconImage.raycastTarget = false;
+            StretchFull(detailIconRect, 12f, 12f);
 
-            detailNameText = CreateText("DetailName", rightPanel.transform, font, 20, FontStyle.Bold,
-                new Color(0.28f, 0.16f, 0.08f, 1f), TextAnchor.UpperLeft);
-            detailNameText.rectTransform.anchorMin = new Vector2(0f, 1f);
-            detailNameText.rectTransform.anchorMax = new Vector2(1f, 1f);
-            detailNameText.rectTransform.pivot = new Vector2(0f, 1f);
-            detailNameText.rectTransform.offsetMin = new Vector2(112f, -46f);
-            detailNameText.rectTransform.offsetMax = new Vector2(-14f, -16f);
-            detailNameText.text = "Hạt Cà Rốt";
+            detailNameText = CreateTopStretchText("DetailName", rightPanel.transform, font, 20, FontStyle.Bold,
+                new Color(0.28f, 0.16f, 0.08f, 1f), 110f, -42f, -14f, -14f);
+            detailCategoryText = CreateTopStretchText("DetailCategory", rightPanel.transform, font, 14, FontStyle.Italic,
+                new Color(0.45f, 0.30f, 0.16f, 1f), 110f, -64f, -14f, -42f);
+            detailCountText = CreateTopStretchText("DetailCount", rightPanel.transform, font, 14, FontStyle.Bold,
+                new Color(0.25f, 0.45f, 0.18f, 1f), 110f, -86f, -14f, -64f);
 
-            detailCategoryText = CreateText("DetailCategory", rightPanel.transform, font, 14, FontStyle.Italic,
-                new Color(0.45f, 0.30f, 0.16f, 1f), TextAnchor.UpperLeft);
-            detailCategoryText.rectTransform.anchorMin = new Vector2(0f, 1f);
-            detailCategoryText.rectTransform.anchorMax = new Vector2(1f, 1f);
-            detailCategoryText.rectTransform.pivot = new Vector2(0f, 1f);
-            detailCategoryText.rectTransform.offsetMin = new Vector2(112f, -72f);
-            detailCategoryText.rectTransform.offsetMax = new Vector2(-14f, -48f);
-            detailCategoryText.text = "Phân loại: Hạt giống";
+            var priceBanner = CreateBox("PriceBanner", rightPanel.transform, new Color(0.38f, 0.24f, 0.12f, 0.95f), false, out var priceBannerRect);
+            priceBannerRect.anchorMin = new Vector2(0f, 1f);
+            priceBannerRect.anchorMax = new Vector2(1f, 1f);
+            priceBannerRect.pivot = new Vector2(0.5f, 1f);
+            priceBannerRect.offsetMin = new Vector2(16f, -138f);
+            priceBannerRect.offsetMax = new Vector2(-16f, -104f);
 
-            detailCountText = CreateText("DetailCount", rightPanel.transform, font, 14, FontStyle.Bold,
-                new Color(0.25f, 0.45f, 0.18f, 1f), TextAnchor.UpperLeft);
-            detailCountText.rectTransform.anchorMin = new Vector2(0f, 1f);
-            detailCountText.rectTransform.anchorMax = new Vector2(1f, 1f);
-            detailCountText.rectTransform.pivot = new Vector2(0f, 1f);
-            detailCountText.rectTransform.offsetMin = new Vector2(112f, -98f);
-            detailCountText.rectTransform.offsetMax = new Vector2(-14f, -74f);
-            detailCountText.text = "Số lượng: 6 / 99";
+            detailPriceText = CreateText("DetailPriceText", priceBanner.transform, font, 14, FontStyle.Bold,
+                new Color(1f, 0.91f, 0.50f, 1f), TextAnchor.MiddleCenter);
+            StretchFull(detailPriceText.rectTransform, 10f, 4f);
 
-            // Khung mô tả chi tiết
-            var descBox = CreateUIObject("DescriptionBox", rightPanel.transform);
-            var descBoxRect = descBox.GetComponent<RectTransform>();
-            descBoxRect.anchorMin = new Vector2(0f, 0f);
-            descBoxRect.anchorMax = new Vector2(1f, 1f);
-            descBoxRect.offsetMin = new Vector2(16f, 68f);
-            descBoxRect.offsetMax = new Vector2(-16f, -112f);
+            var descBox = CreateBox("DescriptionBox", rightPanel.transform, new Color(0.95f, 0.89f, 0.77f, 1f), false, out var descBoxRect);
+            SetStretchOffsets(descBoxRect, 16f, 112f, -16f, -146f);
 
-            var descBg = descBox.AddComponent<UnityEngine.UI.Image>();
-            descBg.color = new Color(0.95f, 0.89f, 0.77f, 1f);
-            descBg.raycastTarget = false;
-
-            detailDescriptionText = CreateText("DetailDescription", descBox.transform, font, 15, FontStyle.Normal,
+            detailDescriptionText = CreateText("DetailDescription", descBox.transform, font, 14, FontStyle.Normal,
                 new Color(0.30f, 0.19f, 0.11f, 1f), TextAnchor.UpperLeft);
-            StretchFull(detailDescriptionText.rectTransform, 12f, 10f);
             detailDescriptionText.lineSpacing = 1.15f;
+            StretchFull(detailDescriptionText.rectTransform, 12f, 8f);
 
-            // Hàng nút bấm chức năng bên dưới cột phải
-            var actionsBar = CreateUIObject("ActionButtonsRow", rightPanel.transform);
-            var actionsRect = actionsBar.GetComponent<RectTransform>();
-            actionsRect.anchorMin = new Vector2(0f, 0f);
-            actionsRect.anchorMax = new Vector2(1f, 0f);
-            actionsRect.pivot = new Vector2(0.5f, 0f);
-            actionsRect.offsetMin = new Vector2(16f, 14f);
-            actionsRect.offsetMax = new Vector2(-16f, 56f);
+            var economyBar = CreateButtonRow("EconomyButtonsRow", rightPanel.transform, 60f, 102f, 6f);
+            sellOneButton = CreateLayoutButton("SellOneButton", economyBar, font, "Bán 1",
+                new Color(0.82f, 0.56f, 0.14f, 1f), out sellOneButtonText);
+            sellAllButton = CreateLayoutButton("SellAllButton", economyBar, font, "Bán Hết",
+                new Color(0.76f, 0.39f, 0.14f, 1f), out sellAllButtonText);
+            buyOneButton = CreateLayoutButton("BuyOneButton", economyBar, font, "Mua +1",
+                new Color(0.24f, 0.56f, 0.45f, 1f), out buyOneButtonText);
 
-            var actionsHlg = actionsBar.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
-            actionsHlg.spacing = 8f;
-            actionsHlg.childAlignment = TextAnchor.MiddleCenter;
-            actionsHlg.childControlWidth = true;
-            actionsHlg.childControlHeight = true;
-            actionsHlg.childForceExpandWidth = true;
-            actionsHlg.childForceExpandHeight = true;
-
-            useButton = CreateLayoutButton("UseButton", actionsBar.transform, font, "Gieo Hạt",
+            var actionsBar = CreateButtonRow("ActionButtonsRow", rightPanel.transform, 12f, 52f, 8f);
+            useButton = CreateLayoutButton("UseButton", actionsBar, font, "Gieo Hạt",
                 new Color(0.35f, 0.62f, 0.25f, 1f), out useButtonText);
-            dropButton = CreateLayoutButton("DropButton", actionsBar.transform, font, "Thả 1 Món",
-                new Color(0.76f, 0.47f, 0.21f, 1f), out _);
-            sortButton = CreateLayoutButton("SortButton", actionsBar.transform, font, "Sắp Xếp",
+            dropButton = CreateLayoutButton("DropButton", actionsBar, font, "Thả 1 Món",
+                new Color(0.68f, 0.43f, 0.22f, 1f), out _);
+            sortButton = CreateLayoutButton("SortButton", actionsBar, font, "Sắp Xếp",
                 new Color(0.46f, 0.34f, 0.22f, 1f), out _);
         }
 
         private void BuildDragGhost()
         {
-            var ghostObj = CreateUIObject("DragGhostIcon", transform);
-            dragGhostRect = ghostObj.GetComponent<RectTransform>();
-            dragGhostRect.anchorMin = new Vector2(0.5f, 0.5f);
-            dragGhostRect.anchorMax = new Vector2(0.5f, 0.5f);
-            dragGhostRect.pivot = new Vector2(0.5f, 0.5f);
-            dragGhostRect.sizeDelta = new Vector2(52f, 52f);
-
-            dragGhostImage = ghostObj.AddComponent<UnityEngine.UI.Image>();
+            var ghostObj = CreateBox("DragGhostIcon", transform, new Color(1f, 1f, 1f, 0.9f), false, out dragGhostRect, out dragGhostImage);
             dragGhostImage.preserveAspect = true;
-            dragGhostImage.raycastTarget = false;
-            dragGhostImage.color = new Color(1f, 1f, 1f, 0.9f);
+            SetAnchor(dragGhostRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(52f, 52f));
             ghostObj.SetActive(false);
         }
 
-        private InventorySlotUI CreateSlotElement(
-            string name,
-            Transform parent,
-            Font font,
-            int index,
-            bool isHotbar)
+        private InventorySlotUI CreateSlotElement(string name, Transform parent, Font font, int index, bool isHotbar)
         {
-            var slotObj = CreateUIObject(name, parent);
-            var bgImg = slotObj.AddComponent<UnityEngine.UI.Image>();
-            bgImg.color = isHotbar
-                ? new Color(0.89f, 0.79f, 0.61f, 1f)
-                : new Color(0.86f, 0.75f, 0.57f, 1f);
-            bgImg.raycastTarget = true;
+            Color bgCol = isHotbar ? new Color(0.89f, 0.79f, 0.61f, 1f) : new Color(0.86f, 0.75f, 0.57f, 1f);
+            var slotObj = CreateBox(name, parent, bgCol, true, out _, out var bgImg);
 
-            // Viền chọn màu vàng kim
-            var borderObj = CreateUIObject("SelectionBorder", slotObj.transform);
-            StretchFull(borderObj.GetComponent<RectTransform>(), 0f, 0f);
-            var borderImg = borderObj.AddComponent<UnityEngine.UI.Image>();
-            borderImg.color = new Color(0.98f, 0.76f, 0.18f, 1f);
-            borderImg.raycastTarget = false;
+            CreateBox("SelectionBorder", slotObj.transform, new Color(0.98f, 0.76f, 0.18f, 1f), false, out var borderRect, out var borderImg);
+            StretchFull(borderRect, 0f, 0f);
             borderImg.enabled = false;
 
-            // Icon vật phẩm
-            var iconObj = CreateUIObject("Icon", slotObj.transform);
-            StretchFull(iconObj.GetComponent<RectTransform>(), 10f, 10f);
-            var iconImg = iconObj.AddComponent<UnityEngine.UI.Image>();
+            CreateBox("Icon", slotObj.transform, Color.white, false, out var iconRect, out var iconImg);
+            StretchFull(iconRect, 10f, 10f);
             iconImg.preserveAspect = true;
-            iconImg.raycastTarget = false;
             iconImg.enabled = false;
 
-            // Số thứ tự phím nóng 1..8 ở góc trên trái (chỉ cho Hotbar)
             var keyText = CreateText("KeybindText", slotObj.transform, font, 12, FontStyle.Bold,
-                new Color(0.42f, 0.27f, 0.15f, 0.9f), TextAnchor.UpperLeft);
+                new Color(0.42f, 0.27f, 0.15f, 0.9f), TextAnchor.UpperLeft, isHotbar ? (index + 1).ToString() : string.Empty);
             StretchFull(keyText.rectTransform, 6f, 4f);
-            keyText.text = isHotbar ? (index + 1).ToString() : string.Empty;
             keyText.gameObject.SetActive(isHotbar);
 
-            // Số lượng cộng dồn ở góc dưới phải
             var countTxt = CreateText("CountText", slotObj.transform, font, 14, FontStyle.Bold,
                 new Color(0.22f, 0.12f, 0.05f, 1f), TextAnchor.LowerRight);
             StretchFull(countTxt.rectTransform, 6f, 4f);
@@ -912,128 +726,145 @@ namespace HappyFarmer.UI
             return slotUI;
         }
 
-        private UnityEngine.UI.Button CreateStyledButton(
-            string name,
-            Transform parent,
-            Font font,
-            string label,
-            Color bgColor,
-            Vector2 anchorMin,
-            Vector2 anchorMax,
-            Vector2 pivot,
-            Vector2 anchoredPos,
-            Vector2 size,
-            int fontSize)
-        {
-            var btnObj = CreateUIObject(name, parent);
-            var rect = btnObj.GetComponent<RectTransform>();
-            rect.anchorMin = anchorMin;
-            rect.anchorMax = anchorMax;
-            rect.pivot = pivot;
-            rect.anchoredPosition = anchoredPos;
-            rect.sizeDelta = size;
+        // =====================================================================
+        // COMPACT UI HELPERS
+        // =====================================================================
 
-            var img = btnObj.AddComponent<UnityEngine.UI.Image>();
-            img.color = bgColor;
-            img.raycastTarget = true;
-
-            var btn = btnObj.AddComponent<UnityEngine.UI.Button>();
-            btn.targetGraphic = img;
-
-            var txt = CreateText("Label", btnObj.transform, font, fontSize, FontStyle.Bold,
-                new Color(1f, 0.97f, 0.88f, 1f), TextAnchor.MiddleCenter);
-            StretchFull(txt.rectTransform, 4f, 2f);
-            txt.text = label;
-
-            return btn;
-        }
-
-        private UnityEngine.UI.Button CreateLayoutButton(
-            string name,
-            Transform parent,
-            Font font,
-            string label,
-            Color bgColor,
-            out UnityEngine.UI.Text labelText)
-        {
-            var btnObj = CreateUIObject(name, parent);
-            var img = btnObj.AddComponent<UnityEngine.UI.Image>();
-            img.color = bgColor;
-            img.raycastTarget = true;
-
-            var btn = btnObj.AddComponent<UnityEngine.UI.Button>();
-            btn.targetGraphic = img;
-
-            labelText = CreateText("Label", btnObj.transform, font, 15, FontStyle.Bold,
-                new Color(1f, 0.97f, 0.88f, 1f), TextAnchor.MiddleCenter);
-            StretchFull(labelText.rectTransform, 6f, 4f);
-            labelText.text = label;
-
-            return btn;
-        }
-
-        private static GameObject CreateUIObject(string name, Transform parent)
+        private static GameObject CreateUIObject(string name, Transform parent, out RectTransform rect)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.layer = LayerMask.NameToLayer("UI") >= 0 ? LayerMask.NameToLayer("UI") : 5;
             go.transform.SetParent(parent, false);
+            rect = go.GetComponent<RectTransform>();
             return go;
         }
 
-        private static UnityEngine.UI.Text CreateText(
-            string name,
-            Transform parent,
-            Font font,
-            int fontSize,
-            FontStyle style,
-            Color color,
-            TextAnchor alignment)
+        private static GameObject CreateBox(string name, Transform parent, Color color, bool raycast, out RectTransform rect)
         {
-            var go = CreateUIObject(name, parent);
+            return CreateBox(name, parent, color, raycast, out rect, out _);
+        }
+
+        private static GameObject CreateBox(string name, Transform parent, Color color, bool raycast, out RectTransform rect, out UnityEngine.UI.Image img)
+        {
+            var go = CreateUIObject(name, parent, out rect);
+            img = go.AddComponent<UnityEngine.UI.Image>();
+            img.color = color;
+            img.raycastTarget = raycast;
+            return go;
+        }
+
+        private static UnityEngine.UI.Text CreateText(string name, Transform parent, Font font, int size, FontStyle style, Color color, TextAnchor align, string initialText = "")
+        {
+            var go = CreateUIObject(name, parent, out _);
             var txt = go.AddComponent<UnityEngine.UI.Text>();
             txt.font = font;
-            txt.fontSize = fontSize;
+            txt.fontSize = size;
             txt.fontStyle = style;
             txt.color = color;
-            txt.alignment = alignment;
+            txt.alignment = align;
             txt.horizontalOverflow = HorizontalWrapMode.Wrap;
             txt.verticalOverflow = VerticalWrapMode.Overflow;
             txt.raycastTarget = false;
+            txt.text = initialText;
             return txt;
+        }
+
+        private static UnityEngine.UI.Text CreateTopStretchText(string name, Transform parent, Font font, int size, FontStyle style, Color color, float left, float bottom, float right, float top)
+        {
+            var txt = CreateText(name, parent, font, size, style, color, TextAnchor.UpperLeft);
+            txt.rectTransform.anchorMin = new Vector2(0f, 1f);
+            txt.rectTransform.anchorMax = new Vector2(1f, 1f);
+            txt.rectTransform.pivot = new Vector2(0f, 1f);
+            txt.rectTransform.offsetMin = new Vector2(left, bottom);
+            txt.rectTransform.offsetMax = new Vector2(right, top);
+            return txt;
+        }
+
+        private static Transform CreateButtonRow(string name, Transform parent, float bottomY, float topY, float spacing)
+        {
+            var rowObj = CreateUIObject(name, parent, out var rect);
+            rect.anchorMin = new Vector2(0f, 0f);
+            rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(0.5f, 0f);
+            rect.offsetMin = new Vector2(16f, bottomY);
+            rect.offsetMax = new Vector2(-16f, topY);
+
+            var hlg = rowObj.AddComponent<UnityEngine.UI.HorizontalLayoutGroup>();
+            hlg.spacing = spacing;
+            hlg.childAlignment = TextAnchor.MiddleCenter;
+            hlg.childControlWidth = true;
+            hlg.childControlHeight = true;
+            hlg.childForceExpandWidth = true;
+            hlg.childForceExpandHeight = true;
+            return rowObj.transform;
+        }
+
+        private static UnityEngine.UI.Button CreateAnchoredButton(string name, Transform parent, Font font, string label, Color bgColor, Vector2 anchor, Vector2 pos, Vector2 size, int fontSize)
+        {
+            var btnObj = CreateBox(name, parent, bgColor, true, out var rect, out var img);
+            SetAnchor(rect, anchor, anchor, anchor, pos, size);
+            var btn = btnObj.AddComponent<UnityEngine.UI.Button>();
+            btn.targetGraphic = img;
+
+            var txt = CreateText("Label", btnObj.transform, font, fontSize, FontStyle.Bold, new Color(1f, 0.97f, 0.88f, 1f), TextAnchor.MiddleCenter, label);
+            StretchFull(txt.rectTransform, 4f, 2f);
+            return btn;
+        }
+
+        private static UnityEngine.UI.Button CreateLayoutButton(string name, Transform parent, Font font, string label, Color bgColor, out UnityEngine.UI.Text labelText)
+        {
+            var btnObj = CreateBox(name, parent, bgColor, true, out _, out var img);
+            var btn = btnObj.AddComponent<UnityEngine.UI.Button>();
+            btn.targetGraphic = img;
+
+            labelText = CreateText("Label", btnObj.transform, font, 13, FontStyle.Bold, new Color(1f, 0.97f, 0.88f, 1f), TextAnchor.MiddleCenter, label);
+            StretchFull(labelText.rectTransform, 4f, 2f);
+            return btn;
+        }
+
+        private static void SetAnchor(RectTransform rect, Vector2 min, Vector2 max, Vector2 pivot, Vector2 pos, Vector2 size)
+        {
+            rect.anchorMin = min;
+            rect.anchorMax = max;
+            rect.pivot = pivot;
+            rect.anchoredPosition = pos;
+            rect.sizeDelta = size;
         }
 
         private static void StretchFull(RectTransform rect, float padX, float padY)
         {
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = new Vector2(padX, padY);
-            rect.offsetMax = new Vector2(-padX, -padY);
+            SetStretchOffsets(rect, padX, padY, -padX, -padY);
         }
 
-        private static Font GetDefaultFont()
+        private static void SetStretchOffsets(RectTransform rect, float left, float bottom, float right, float top)
         {
-            var font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            if (font == null)
-            {
-                font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            }
-            return font;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = new Vector2(left, bottom);
+            rect.offsetMax = new Vector2(right, top);
         }
+
+        // =====================================================================
+        // PROCEDURAL PIXEL THEME SPRITES (RUNTIME 9-SLICE)
+        // =====================================================================
 
         private void ApplyProceduralSpritesToExistingUI()
         {
-            var allImages = GetComponentsInChildren<UnityEngine.UI.Image>(true);
-            foreach (var img in allImages)
+            foreach (var img in GetComponentsInChildren<UnityEngine.UI.Image>(true))
             {
                 if (img == null) continue;
                 string n = img.gameObject.name;
 
                 if (n == "BackpackModal" || n == "Icon" || n == "DetailIcon" || n == "CrateIcon" || n == "DragGhostIcon")
-                {
                     continue;
-                }
 
-                if (n == "SelectionBorder")
+                if (n == "CoinIcon")
+                {
+                    img.sprite = coinSprite;
+                    img.type = UnityEngine.UI.Image.Type.Simple;
+                    img.color = Color.white;
+                }
+                else if (n == "SelectionBorder")
                 {
                     img.sprite = selectionOutlineSprite;
                     img.type = UnityEngine.UI.Image.Type.Sliced;
@@ -1064,105 +895,71 @@ namespace HappyFarmer.UI
         private void GenerateThemeSprites()
         {
             if (woodPanelSprite == null)
-            {
-                woodPanelSprite = CreateBeveledBoxSprite(
-                    "WoodPanel9Slice",
-                    16,
-                    new Color(0.24f, 0.13f, 0.06f, 1f), // Viền ngoài gỗ sẫm
-                    new Color(0.86f, 0.68f, 0.48f, 1f), // Viền sáng trong
-                    Color.white);
-            }
-
+                woodPanelSprite = CreateBeveledBoxSprite("WoodPanel9Slice", 16, new Color(0.24f, 0.13f, 0.06f, 1f), new Color(0.86f, 0.68f, 0.48f, 1f));
             if (innerPaperSprite == null)
-            {
-                innerPaperSprite = CreateBeveledBoxSprite(
-                    "PaperPanel9Slice",
-                    16,
-                    new Color(0.48f, 0.31f, 0.17f, 1f),
-                    new Color(0.95f, 0.88f, 0.74f, 1f),
-                    Color.white);
-            }
-
+                innerPaperSprite = CreateBeveledBoxSprite("PaperPanel9Slice", 16, new Color(0.48f, 0.31f, 0.17f, 1f), new Color(0.95f, 0.88f, 0.74f, 1f));
             if (slotBoxSprite == null)
-            {
-                slotBoxSprite = CreateBeveledBoxSprite(
-                    "SlotBox9Slice",
-                    16,
-                    new Color(0.38f, 0.23f, 0.12f, 1f),
-                    new Color(0.72f, 0.55f, 0.36f, 1f),
-                    Color.white);
-            }
-
+                slotBoxSprite = CreateBeveledBoxSprite("SlotBox9Slice", 16, new Color(0.38f, 0.23f, 0.12f, 1f), new Color(0.72f, 0.55f, 0.36f, 1f));
             if (buttonSprite == null)
-            {
-                buttonSprite = CreateBeveledBoxSprite(
-                    "Button9Slice",
-                    16,
-                    new Color(0.20f, 0.11f, 0.05f, 1f),
-                    new Color(0.92f, 0.84f, 0.68f, 1f),
-                    Color.white);
-            }
-
+                buttonSprite = CreateBeveledBoxSprite("Button9Slice", 16, new Color(0.20f, 0.11f, 0.05f, 1f), new Color(0.92f, 0.84f, 0.68f, 1f));
             if (selectionOutlineSprite == null)
-            {
                 selectionOutlineSprite = CreateOutlineBoxSprite("SelectionOutline9Slice", 16, 3);
-            }
+            if (coinSprite == null)
+                coinSprite = CreatePixelCoinSprite("PixelGoldCoin", 16);
         }
 
-        private static Sprite CreateBeveledBoxSprite(
-            string name,
-            int size,
-            Color outerBorder,
-            Color innerHighlight,
-            Color fill)
+        private static Sprite CreatePixelCoinSprite(string name, int size)
         {
-            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            tex.name = name;
-            tex.filterMode = FilterMode.Point;
-            tex.wrapMode = TextureWrapMode.Clamp;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = name, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            Color outline = new Color(0.42f, 0.24f, 0.05f, 1f);
+            Color goldDark = new Color(0.88f, 0.62f, 0.10f, 1f);
+            Color goldMid = new Color(0.98f, 0.80f, 0.18f, 1f);
+            Color goldBright = new Color(1f, 0.95f, 0.55f, 1f);
 
+            float center = (size - 1) * 0.5f;
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
                 {
-                    bool isCornerCut = (x == 0 || x == size - 1) && (y == 0 || y == size - 1);
-                    if (isCornerCut)
+                    float dx = x - center, dy = y - center;
+                    float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+                    if (dist > 6.6f) tex.SetPixel(x, y, Color.clear);
+                    else if (dist > 5.4f) tex.SetPixel(x, y, outline);
+                    else if ((x == 7 || x == 8) && y >= 5 && y <= 10) tex.SetPixel(x, y, goldBright);
+                    else if (dx + dy < -2f) tex.SetPixel(x, y, goldBright);
+                    else if (dx + dy > 2.5f) tex.SetPixel(x, y, goldDark);
+                    else tex.SetPixel(x, y, goldMid);
+                }
+            }
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f);
+        }
+
+        private static Sprite CreateBeveledBoxSprite(string name, int size, Color outerBorder, Color innerHighlight)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = name, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    if ((x == 0 || x == size - 1) && (y == 0 || y == size - 1))
                     {
                         tex.SetPixel(x, y, Color.clear);
                         continue;
                     }
-
-                    bool isOuter = x == 0 || x == size - 1 || y == 0 || y == size - 1 ||
-                                   ((x == 1 || x == size - 2) && (y == 1 || y == size - 2));
+                    bool isOuter = x == 0 || x == size - 1 || y == 0 || y == size - 1 || ((x == 1 || x == size - 2) && (y == 1 || y == size - 2));
                     bool isInner = x == 1 || x == size - 2 || y == 1 || y == size - 2;
-
-                    if (isOuter)
-                        tex.SetPixel(x, y, outerBorder);
-                    else if (isInner)
-                        tex.SetPixel(x, y, innerHighlight);
-                    else
-                        tex.SetPixel(x, y, fill);
+                    tex.SetPixel(x, y, isOuter ? outerBorder : (isInner ? innerHighlight : Color.white));
                 }
             }
-
             tex.Apply();
-            return Sprite.Create(
-                tex,
-                new Rect(0, 0, size, size),
-                new Vector2(0.5f, 0.5f),
-                100f,
-                0,
-                SpriteMeshType.FullRect,
-                new Vector4(4, 4, 4, 4));
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(4, 4, 4, 4));
         }
 
         private static Sprite CreateOutlineBoxSprite(string name, int size, int thickness)
         {
-            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            tex.name = name;
-            tex.filterMode = FilterMode.Point;
-            tex.wrapMode = TextureWrapMode.Clamp;
-
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = name, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
             for (int y = 0; y < size; y++)
             {
                 for (int x = 0; x < size; x++)
@@ -1171,29 +968,20 @@ namespace HappyFarmer.UI
                     tex.SetPixel(x, y, isEdge ? Color.white : Color.clear);
                 }
             }
-
             tex.Apply();
-            return Sprite.Create(
-                tex,
-                new Rect(0, 0, size, size),
-                new Vector2(0.5f, 0.5f),
-                100f,
-                0,
-                SpriteMeshType.FullRect,
-                new Vector4(thickness + 1, thickness + 1, thickness + 1, thickness + 1));
+            int b = thickness + 1;
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(b, b, b, b));
         }
 
 #if UNITY_EDITOR
         private static Sprite FindEditorSprite(string spriteName)
         {
-            var guids = UnityEditor.AssetDatabase.FindAssets("t:Texture2D", new[] { "Assets/Sprites" });
-            foreach (var guid in guids)
+            foreach (var guid in UnityEditor.AssetDatabase.FindAssets("t:Texture2D", new[] { "Assets/Sprites" }))
             {
                 var path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
                 foreach (var asset in UnityEditor.AssetDatabase.LoadAllAssetsAtPath(path))
                 {
-                    if (asset is Sprite s && s.name == spriteName)
-                        return s;
+                    if (asset is Sprite s && s.name == spriteName) return s;
                 }
             }
             return null;

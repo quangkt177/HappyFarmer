@@ -19,6 +19,7 @@ namespace HappyFarmer.EditorTools
     {
         private const string ScenePath = "Assets/Scenes/FarmMap.unity";
         private const string PastureScenePath = "Assets/Scenes/PastureScene.unity";
+        private const string EconomyAssetPath = "Assets/Resources/EconomyDatabase.asset";
         private const string GroundLayer = "Ground";
         private const string WorldLayer = "World";
         private const string UiLayer = "UI";
@@ -41,11 +42,22 @@ namespace HappyFarmer.EditorTools
                 return;
             }
 
+            bool needsEconomyAsset = !File.Exists(EconomyAssetPath);
             var activeScene = SceneManager.GetActiveScene();
-            if (activeScene.path == ScenePath && Object.FindObjectOfType<InventoryUI>() == null)
+            if (activeScene.path == ScenePath)
             {
-                Debug.Log("[HappyFarmer] Adding Inventory System & UI to FarmMap scene...");
-                SetupInventoryInCurrentScene();
+                var existingUi = Object.FindObjectOfType<InventoryUI>();
+                bool needsUiUpgrade = existingUi == null || existingUi.transform.Find("HudCoinBadge") == null;
+                if (needsEconomyAsset || needsUiUpgrade)
+                {
+                    Debug.Log("[HappyFarmer] Updating Inventory & Economy System in FarmMap scene...");
+                    SetupInventoryInCurrentScene();
+                }
+            }
+            else if (needsEconomyAsset)
+            {
+                var sprites = LoadAllSprites();
+                EnsureEconomyDatabaseAsset(sprites);
             }
         }
 
@@ -54,10 +66,12 @@ namespace HappyFarmer.EditorTools
         {
             EnsureFolder("Assets/Scenes");
             EnsureFolder("Assets/Tiles");
+            EnsureFolder("Assets/Resources");
 
             ConfigureProject();
             PlayerAnimationBuilder.GenerateAnimationsAndController();
             var sprites = LoadAllSprites();
+            EnsureEconomyDatabaseAsset(sprites);
             var tiles = LoadAllTiles(sprites);
             CreateTilePalette(tiles);
             BuildScene(sprites, tiles);
@@ -99,7 +113,54 @@ namespace HappyFarmer.EditorTools
                 EditorSceneManager.MarkSceneDirty(scene);
                 EditorSceneManager.SaveScene(scene);
             }
-            Debug.Log("[HappyFarmer] SUCCESS: Inventory UI & Manager configured in scene.");
+            AssetDatabase.SaveAssets();
+            Debug.Log("[HappyFarmer] SUCCESS: Inventory UI, Economy Database & Manager configured in scene.");
+        }
+
+        [MenuItem("Happy Farmer/5. Edit Item Prices (Economy Database)", false, 5)]
+        public static void OpenEconomyDatabaseInspector()
+        {
+            var sprites = LoadAllSprites();
+            var db = EnsureEconomyDatabaseAsset(sprites);
+            if (db != null)
+            {
+                Selection.activeObject = db;
+                EditorGUIUtility.PingObject(db);
+                Debug.Log("[HappyFarmer] Selected EconomyDatabase.asset in Inspector. You can edit currency settings and item buy/sell prices directly without modifying code!");
+            }
+        }
+
+        private static EconomyDatabaseSO EnsureEconomyDatabaseAsset(Dictionary<string, Sprite> sprites)
+        {
+            EnsureFolder("Assets/Resources");
+            var db = AssetDatabase.LoadAssetAtPath<EconomyDatabaseSO>(EconomyAssetPath);
+            if (db == null)
+            {
+                db = ScriptableObject.CreateInstance<EconomyDatabaseSO>();
+                db.PopulateDefaultDataIfEmpty(name =>
+                {
+                    if (sprites != null && sprites.TryGetValue(name, out var sp)) return sp;
+                    return null;
+                });
+                AssetDatabase.CreateAsset(db, EconomyAssetPath);
+                EditorUtility.SetDirty(db);
+                AssetDatabase.SaveAssets();
+                Debug.Log("[HappyFarmer] Created configurable EconomyDatabase asset at " + EconomyAssetPath);
+            }
+            else if (db.items == null || db.items.Count == 0 ||
+                     db.forageRules == null || db.forageRules.Count == 0 ||
+                     db.initialWorldPickups == null || db.initialWorldPickups.Count == 0)
+            {
+                db.PopulateDefaultDataIfEmpty(name =>
+                {
+                    if (sprites != null && sprites.TryGetValue(name, out var sp)) return sp;
+                    return null;
+                });
+                EditorUtility.SetDirty(db);
+                AssetDatabase.SaveAssets();
+            }
+
+            return db;
         }
 
         private static void EnsureFolder(string path)
@@ -320,7 +381,7 @@ namespace HappyFarmer.EditorTools
             // 5. Main Camera
             BuildCamera();
 
-            // 5. Inventory System & UI
+            // 6. Inventory & Economy System + UI
             BuildInventorySystem(sprites);
 
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -670,6 +731,8 @@ namespace HappyFarmer.EditorTools
 
         private static void BuildInventorySystem(Dictionary<string, Sprite> sprites)
         {
+            var economyDb = EnsureEconomyDatabaseAsset(sprites);
+
             var manager = Object.FindObjectOfType<InventoryManager>();
             if (manager == null)
             {
@@ -679,6 +742,11 @@ namespace HappyFarmer.EditorTools
             if (sprites != null)
             {
                 manager.SetPreloadedSprites(sprites.Values.ToList());
+            }
+            if (economyDb != null)
+            {
+                manager.SetEconomyDatabase(economyDb);
+                EditorUtility.SetDirty(manager);
             }
 
             if (Object.FindObjectOfType<EventSystem>() == null)
@@ -696,6 +764,7 @@ namespace HappyFarmer.EditorTools
             else
             {
                 existingUI.BuildUIHierarchy();
+                EditorUtility.SetDirty(existingUI);
             }
         }
     }
