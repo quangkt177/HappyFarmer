@@ -248,6 +248,9 @@ namespace HappyFarmer.EditorTools
             // 8. Main Camera
             BuildCamera();
 
+            // 9. Inventory System & UI
+            FarmMapBuilder.BuildInventorySystem(sprites);
+
             EditorSceneManager.SaveScene(scene, ScenePath);
         }
 

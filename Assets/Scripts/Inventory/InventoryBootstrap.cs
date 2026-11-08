@@ -1,13 +1,33 @@
 using HappyFarmer.UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 
 namespace HappyFarmer.Inventory
 {
     public static class InventoryBootstrap
     {
+        private static bool isSubscribed;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void EnsureInventoryInScene()
+        private static void InitOnPlayMode()
+        {
+            if (!isSubscribed)
+            {
+                SceneManager.sceneLoaded -= OnSceneLoaded;
+                SceneManager.sceneLoaded += OnSceneLoaded;
+                isSubscribed = true;
+            }
+
+            EnsureInventoryInScene();
+        }
+
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            EnsureInventoryInScene();
+        }
+
+        public static void EnsureInventoryInScene()
         {
             if (Object.FindObjectOfType<InventoryManager>() == null)
             {
@@ -36,11 +56,12 @@ namespace HappyFarmer.Inventory
 
             var canvas = canvasObj.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.pixelPerfect = true;
             canvas.sortingOrder = 100;
 
             var scaler = canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
             scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.referenceResolution = new Vector2(1280f, 720f);
             scaler.screenMatchMode = UnityEngine.UI.CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
             scaler.matchWidthOrHeight = 0.5f;
 
