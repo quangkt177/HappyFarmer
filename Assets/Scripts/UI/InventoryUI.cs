@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using HappyFarmer.Inventory;
 using HappyFarmer.Economy;
@@ -60,12 +61,12 @@ namespace HappyFarmer.UI
         private float toastTimer;
 
         public KeyCode ToggleKey => toggleKey;
+        public bool HasValidHierarchy => hotbarRoot != null || transform.childCount > 0;
 
         private void Awake()
         {
             ConfigureCrispCanvas();
-            BindExistingHierarchy();
-            BindEvents();
+            EnsureUIHierarchy();
         }
 
         private void Start()
@@ -83,11 +84,13 @@ namespace HappyFarmer.UI
             {
                 EconomyManager.Instance.OnBalanceChanged -= OnBalanceChanged;
             }
-            if (InventoryManager.Instance == null) return;
-            InventoryManager.Instance.OnInventoryChanged -= RefreshAll;
-            InventoryManager.Instance.OnSelectedHotbarChanged -= OnHotbarSelectionChanged;
-            InventoryManager.Instance.OnBalanceChanged -= OnBalanceChanged;
-            InventoryManager.Instance.OnNotification -= ShowToast;
+
+            if (InventoryManager.Instance != null)
+            {
+                InventoryManager.Instance.OnInventoryChanged -= RefreshAll;
+                InventoryManager.Instance.OnSelectedHotbarChanged -= OnHotbarSelectionChanged;
+                InventoryManager.Instance.OnNotification -= ShowToast;
+            }
         }
 
         private void Update()
@@ -131,20 +134,18 @@ namespace HappyFarmer.UI
             var manager = InventoryManager.Instance ?? FindObjectOfType<InventoryManager>();
             if (manager == null) return;
 
-            if (slotUIs.Count != manager.TotalSlotCount)
+            if (slotUIs.Count != manager.TotalSlotCount || hotbarRoot == null || backpackModalRoot == null)
             {
-                BindExistingHierarchy();
+                EnsureUIHierarchy();
                 BindEvents();
             }
 
             manager.OnInventoryChanged -= RefreshAll;
             manager.OnSelectedHotbarChanged -= OnHotbarSelectionChanged;
-            manager.OnBalanceChanged -= OnBalanceChanged;
             manager.OnNotification -= ShowToast;
 
             manager.OnInventoryChanged += RefreshAll;
             manager.OnSelectedHotbarChanged += OnHotbarSelectionChanged;
-            manager.OnBalanceChanged += OnBalanceChanged;
             manager.OnNotification += ShowToast;
 
             if (EconomyManager.Instance != null)
@@ -192,7 +193,7 @@ namespace HappyFarmer.UI
             button.onClick.AddListener(action);
         }
 
-        private void ExecuteAndRefresh(System.Action<InventoryManager> action)
+        private void ExecuteAndRefresh(Action<InventoryManager> action)
         {
             var manager = InventoryManager.Instance;
             if (manager == null) return;
@@ -362,10 +363,10 @@ namespace HappyFarmer.UI
         {
             if (activeItemLabel == null) return;
 
-            var slot = manager.GetSlot(manager.SelectedHotbarIndex);
-            var data = (slot != null && !slot.IsEmpty) ? manager.GetItemData(slot.itemId) : null;
+            var slot = manager.ActiveSlot;
+            var data = manager.ActiveItemData;
 
-            if (data == null)
+            if (data == null || slot == null || slot.IsEmpty)
             {
                 activeItemLabel.text = $"Tay không   •   [{toggleKey}] Mở Túi Đồ & Bán Hàng   [Q] Thả món đồ";
                 return;
@@ -439,11 +440,16 @@ namespace HappyFarmer.UI
         }
 
         // =====================================================================
-        // SCENE CANVAS BINDINGS (NO BUILDER BY CODE)
+        // SCENE CANVAS BINDINGS
         // =====================================================================
 
-        public void EnsureUIHierarchy() => BindExistingHierarchy();
-        public void BuildUIHierarchy() => BindExistingHierarchy();
+        public void EnsureUIHierarchy()
+        {
+            BindExistingHierarchy();
+            BindEvents();
+        }
+
+        public void BuildUIHierarchy() => EnsureUIHierarchy();
 
         public void BindExistingHierarchy()
         {

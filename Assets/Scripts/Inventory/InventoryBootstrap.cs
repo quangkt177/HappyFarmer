@@ -49,35 +49,48 @@ namespace HappyFarmer.Inventory
                 esObj.AddComponent<StandaloneInputModule>();
             }
 
-            if (Object.FindObjectOfType<InventoryUI>() == null)
+            var existingUi = Object.FindObjectOfType<InventoryUI>();
+            if (existingUi != null && !existingUi.HasValidHierarchy)
+            {
+                // Nếu là Canvas rỗng chưa có UI hierarchy (như ở một số scene cũ), xóa đi để nạp từ Prefab hoàn chỉnh
+                Object.DestroyImmediate(existingUi.gameObject);
+                existingUi = null;
+            }
+
+            if (existingUi == null)
             {
                 CreateInventoryCanvas();
+            }
+            else
+            {
+                existingUi.EnsureUIHierarchy();
             }
         }
 
         public static GameObject CreateInventoryCanvas()
         {
-            var canvasObj = new GameObject("InventoryCanvas");
-            int uiLayer = LayerMask.NameToLayer("UI");
-            canvasObj.layer = uiLayer >= 0 ? uiLayer : 5;
+            var prefab = Resources.Load<GameObject>("InventoryCanvas")
+                         ?? Resources.Load<GameObject>("Prefabs/InventoryCanvas");
 
-            var canvas = canvasObj.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.pixelPerfect = true;
-            canvas.sortingOrder = 100;
+#if UNITY_EDITOR
+            if (prefab == null)
+            {
+                prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/InventoryCanvas.prefab")
+                         ?? UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Resources/InventoryCanvas.prefab");
+            }
+#endif
 
-            var scaler = canvasObj.AddComponent<UnityEngine.UI.CanvasScaler>();
-            scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1280f, 720f);
-            scaler.screenMatchMode = UnityEngine.UI.CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 0.5f;
+            if (prefab != null)
+            {
+                var instance = Object.Instantiate(prefab);
+                instance.name = "InventoryCanvas";
+                var canvasUi = instance.GetComponent<InventoryUI>();
+                if (canvasUi != null) canvasUi.EnsureUIHierarchy();
+                return instance;
+            }
 
-            canvasObj.AddComponent<UnityEngine.UI.GraphicRaycaster>();
-
-            var ui = canvasObj.AddComponent<InventoryUI>();
-            ui.BuildUIHierarchy();
-
-            return canvasObj;
+            Debug.LogWarning("[InventoryBootstrap] Không tìm thấy Prefab InventoryCanvas.");
+            return null;
         }
     }
 }

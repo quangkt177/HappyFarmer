@@ -75,20 +75,22 @@ namespace HappyFarmer.Inventory
 
         public int TotalSlots => Mathf.Max(1, hotbarSize) + Mathf.Max(1, backpackSize);
 
+        public InventoryItemData GetItem(string id) =>
+            !string.IsNullOrEmpty(id) ? items?.Find(i => i != null && i.id == id) : null;
+
+        public bool HasItem(string id) =>
+            !string.IsNullOrEmpty(id) && items != null && items.Exists(i => i != null && i.id == id);
+
         public string FormatCurrency(int amount)
         {
             string sym = string.IsNullOrEmpty(currencySymbol) ? "Xu" : currencySymbol;
             return $"{amount:N0} {sym}";
         }
 
-        public int GetParcelPrice(string parcelName, int fallback)
+        public int GetParcelPrice(string parcelName, int fallback = 150)
         {
-            if (parcelPrices == null) return fallback;
-            foreach (var cfg in parcelPrices)
-            {
-                if (cfg != null && cfg.parcelName == parcelName) return cfg.price;
-            }
-            return fallback;
+            var cfg = parcelPrices?.Find(p => p != null && p.parcelName == parcelName);
+            return cfg != null ? cfg.price : fallback;
         }
 
         public void PopulateDefaultDataIfEmpty(Func<string, Sprite> spriteResolver = null)
@@ -246,16 +248,12 @@ namespace HappyFarmer.Inventory
                 category = category,
                 spriteName = spriteName,
                 icon = spriteResolver != null ? spriteResolver(spriteName) : null,
-                maxStack = 99,
                 canBeSold = sellPrice > 0,
                 sellPrice = sellPrice,
                 canBeBought = canBuy,
                 buyPrice = buyPrice,
                 cropKey = cropKey,
-                harvestItemId = harvestId,
-                secondsPerStage = 3.5f,
-                minHarvestYield = 2,
-                maxHarvestYield = 3
+                harvestItemId = harvestId
             };
         }
     }

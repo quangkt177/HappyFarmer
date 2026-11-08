@@ -30,7 +30,7 @@ namespace HappyFarmer.Inventory
         private readonly Dictionary<string, InventoryItemData> itemLookup = new Dictionary<string, InventoryItemData>();
         private readonly Dictionary<string, Sprite> spriteLookup = new Dictionary<string, Sprite>();
 
-        // Mỗi scene có InventoryManager riêng, nên túi đồ được giữ lại ở đây khi đổi map
+        // Giữ lại dữ liệu túi đồ khi chuyển scene
         private static List<InventorySlot> carriedSlots;
 
         public event Action OnInventoryChanged;
@@ -42,10 +42,12 @@ namespace HappyFarmer.Inventory
         public int BackpackSlotCount => economyDatabase != null ? Mathf.Max(1, economyDatabase.backpackSize) : DefaultBackpackSize;
         public int TotalSlotCount => HotbarSlotCount + BackpackSlotCount;
         public int SelectedHotbarIndex => selectedHotbarIndex;
+        public InventorySlot ActiveSlot => GetSlot(selectedHotbarIndex);
+        public InventoryItemData ActiveItemData => GetItemData(ActiveSlot?.itemId);
+
         public int CurrentBalance => EconomyManager.Instance != null ? EconomyManager.Instance.CurrentBalance : 0;
         public EconomyDatabaseSO EconomyDatabase => economyDatabase;
         public string CurrencyName => EconomyManager.Instance != null ? EconomyManager.Instance.CurrencyName : "Xu Vàng";
-
         public Transform PlayerTransform { get; private set; }
 
         private void Awake()
@@ -67,10 +69,7 @@ namespace HappyFarmer.Inventory
             }
         }
 
-        private void HandleBalanceChanged(int balance)
-        {
-            OnBalanceChanged?.Invoke(balance);
-        }
+        private void HandleBalanceChanged(int balance) => OnBalanceChanged?.Invoke(balance);
 
         private void Start()
         {
@@ -101,47 +100,34 @@ namespace HappyFarmer.Inventory
         public void SetEconomyDatabase(EconomyDatabaseSO db)
         {
             economyDatabase = db;
-            if (EconomyManager.Instance != null)
-            {
-                EconomyManager.Instance.SetEconomyDatabase(db);
-            }
+            EconomyManager.Instance?.SetEconomyDatabase(db);
         }
+
         public void SetPreloadedSprites(List<Sprite> sprites) => preloadedSprites = sprites ?? new List<Sprite>();
         public void Notify(string message) => OnNotification?.Invoke(message);
 
         // =====================================================================
-        // INITIALIZATION (DATA-DRIVEN)
+        // INITIALIZATION & DATA LOADING
         // =====================================================================
 
         private void ResolveSceneReferences()
         {
-            if (PlayerTransform == null)
-            {
-                var player = GameObject.FindWithTag("Player") ?? GameObject.Find("Player");
-                if (player != null) PlayerTransform = player.transform;
-            }
-
-
+            if (PlayerTransform != null) return;
+            var player = GameObject.FindWithTag("Player") ?? GameObject.Find("Player");
+            if (player != null) PlayerTransform = player.transform;
         }
 
         private void LoadSprites()
         {
             spriteLookup.Clear();
-
-            if (preloadedSprites != null)
-            {
-                foreach (var s in preloadedSprites)
-                {
-                    if (s != null && !spriteLookup.ContainsKey(s.name))
-                        spriteLookup[s.name] = s;
-                }
-            }
-
-            foreach (var s in Resources.FindObjectsOfTypeAll<Sprite>())
+            void AddSprite(Sprite s)
             {
                 if (s != null && !spriteLookup.ContainsKey(s.name))
                     spriteLookup[s.name] = s;
             }
+
+            if (preloadedSprites != null) preloadedSprites.ForEach(AddSprite);
+            foreach (var s in Resources.FindObjectsOfTypeAll<Sprite>()) AddSprite(s);
 
 #if UNITY_EDITOR
             foreach (var guid in UnityEditor.AssetDatabase.FindAssets("t:Texture2D", new[] { "Assets/Sprites" }))
@@ -149,8 +135,7 @@ namespace HappyFarmer.Inventory
                 var path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
                 foreach (var asset in UnityEditor.AssetDatabase.LoadAllAssetsAtPath(path))
                 {
-                    if (asset is Sprite sp && !spriteLookup.ContainsKey(sp.name))
-                        spriteLookup[sp.name] = sp;
+                    if (asset is Sprite sp) AddSprite(sp);
                 }
             }
 #endif
@@ -160,11 +145,8 @@ namespace HappyFarmer.Inventory
         {
             if (economyDatabase == null)
             {
-                economyDatabase = Resources.Load<EconomyDatabaseSO>("EconomyDatabase");
-            }
-            if (economyDatabase == null)
-            {
-                economyDatabase = ScriptableObject.CreateInstance<EconomyDatabaseSO>();
+                economyDatabase = Resources.Load<EconomyDatabaseSO>("EconomyDatabase") 
+                    ?? ScriptableObject.CreateInstance<EconomyDatabaseSO>();
             }
 
             economyDatabase.PopulateDefaultDataIfEmpty(GetSprite);
@@ -179,31 +161,16 @@ namespace HappyFarmer.Inventory
                 }
                 itemLookup[item.id] = item;
             }
-
-
         }
 
         private void InitializeSlots()
         {
-            bool isCarriedOver = carriedSlots != null;
-            if (isCarriedOver)
-            {
-                slots = carriedSlots;
-            }
-
+            if (carriedSlots != null) slots = carriedSlots;
             if (slots == null) slots = new List<InventorySlot>(TotalSlotCount);
-            while (slots.Count < TotalSlotCount)
-            {
-                slots.Add(new InventorySlot());
-            }
 
-            bool isAllEmpty = true;
-            for (int i = 0; i < slots.Count; i++)
-            {
-                if (!slots[i].IsEmpty) { isAllEmpty = false; break; }
-            }
+            while (slots.Count < TotalSlotCount) slots.Add(new InventorySlot());
 
-            if (isAllEmpty && !isCarriedOver && economyDatabase != null && economyDatabase.starterSlots != null)
+            if (slots.TrueForAll(s => s.IsEmpty) && carriedSlots == null && economyDatabase?.starterSlots != null)
             {
                 foreach (var starter in economyDatabase.starterSlots)
                 {
@@ -217,19 +184,20 @@ namespace HappyFarmer.Inventory
 
         private void SpawnConfiguredWorldPickups()
         {
-            if (economyDatabase == null || economyDatabase.initialWorldPickups == null) return;
-            if (GameObject.Find("WorldPickups") != null) return;
+            if (economyDatabase?.initialWorldPickups == null || GameObject.Find("WorldPickups") != null) return;
 
             var root = new GameObject("WorldPickups").transform;
             foreach (var cfg in economyDatabase.initialWorldPickups)
             {
-                if (cfg == null || string.IsNullOrEmpty(cfg.itemId)) continue;
-                SpawnPickupObject(root, cfg.itemId, cfg.count, cfg.position, 0f);
+                if (cfg != null && !string.IsNullOrEmpty(cfg.itemId))
+                {
+                    SpawnPickupObject(root, cfg.itemId, cfg.count, cfg.position, 0f);
+                }
             }
         }
 
         // =====================================================================
-        // QUERIES & CURRENCY
+        // QUERIES & CURRENCY FORWARDING
         // =====================================================================
 
         public InventorySlot GetSlot(int index) => (index >= 0 && index < slots.Count) ? slots[index] : null;
@@ -274,6 +242,19 @@ namespace HappyFarmer.Inventory
             return false;
         }
 
+        public int CountItem(string itemId)
+        {
+            if (string.IsNullOrEmpty(itemId)) return 0;
+            int total = 0;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                if (slots[i].itemId == itemId) total += slots[i].count;
+            }
+            return total;
+        }
+
+        public bool HasItem(string itemId, int amount = 1) => CountItem(itemId) >= amount;
+
         public bool AddItem(string itemId, int amount = 1, bool showNotification = true)
         {
             var data = GetItemData(itemId);
@@ -281,26 +262,20 @@ namespace HappyFarmer.Inventory
 
             int remaining = amount;
 
-            // 1. Cộng dồn vào stack đang có
+            // 1. Cộng dồn vào các stack đã có
             for (int i = 0; i < slots.Count && remaining > 0; i++)
             {
-                var s = slots[i];
-                if (!s.IsEmpty && s.itemId == itemId && s.count < data.maxStack)
-                {
-                    int add = Mathf.Min(remaining, data.maxStack - s.count);
-                    s.count += add;
-                    remaining -= add;
-                }
+                if (!slots[i].IsEmpty && slots[i].itemId == itemId)
+                    remaining -= slots[i].Add(remaining, data.maxStack);
             }
 
-            // 2. Đặt vào ô trống
+            // 2. Đặt phần còn lại vào ô trống
             for (int i = 0; i < slots.Count && remaining > 0; i++)
             {
                 if (slots[i].IsEmpty)
                 {
-                    int add = Mathf.Min(remaining, data.maxStack);
-                    slots[i].Set(itemId, add);
-                    remaining -= add;
+                    slots[i].itemId = itemId;
+                    remaining -= slots[i].Add(remaining, data.maxStack);
                 }
             }
 
@@ -321,9 +296,25 @@ namespace HappyFarmer.Inventory
             var slot = GetSlot(slotIndex);
             if (slot == null || slot.IsEmpty || amount <= 0) return false;
 
-            slot.Set(slot.itemId, slot.count - amount);
+            slot.Remove(amount);
             OnInventoryChanged?.Invoke();
             return true;
+        }
+
+        public int RemoveItem(string itemId, int amount = 1)
+        {
+            if (string.IsNullOrEmpty(itemId) || amount <= 0) return 0;
+
+            int remaining = amount;
+            for (int i = 0; i < slots.Count && remaining > 0; i++)
+            {
+                if (slots[i].itemId == itemId)
+                    remaining -= slots[i].Remove(remaining);
+            }
+
+            int removed = amount - remaining;
+            if (removed > 0) OnInventoryChanged?.Invoke();
+            return removed;
         }
 
         public void SwapOrMergeSlots(int indexA, int indexB)
@@ -333,19 +324,20 @@ namespace HappyFarmer.Inventory
             var slotB = GetSlot(indexB);
             if (slotA == null || slotB == null || (slotA.IsEmpty && slotB.IsEmpty)) return;
 
+            // Nếu cùng item thì gộp sang B
             if (!slotA.IsEmpty && slotA.itemId == slotB.itemId)
             {
                 int maxStack = GetItemData(slotB.itemId)?.maxStack ?? 99;
-                int move = Mathf.Min(slotA.count, maxStack - slotB.count);
-                if (move > 0)
+                int moved = slotB.Add(slotA.count, maxStack);
+                if (moved > 0)
                 {
-                    slotB.count += move;
-                    slotA.Set(slotA.itemId, slotA.count - move);
+                    slotA.Remove(moved);
                     OnInventoryChanged?.Invoke();
                     return;
                 }
             }
 
+            // Hoán đổi vị trí
             string tempId = slotA.itemId;
             int tempCount = slotA.count;
             slotA.Set(slotB.itemId, slotB.count);
@@ -358,31 +350,37 @@ namespace HappyFarmer.Inventory
             var source = GetSlot(slotIndex);
             if (source == null || source.IsEmpty) return slotIndex;
 
-            int rangeStart = slotIndex < HotbarSlotCount ? HotbarSlotCount : 0;
-            int rangeEnd = slotIndex < HotbarSlotCount ? TotalSlotCount : HotbarSlotCount;
+            int start = slotIndex < HotbarSlotCount ? HotbarSlotCount : 0;
+            int end = slotIndex < HotbarSlotCount ? TotalSlotCount : HotbarSlotCount;
             int maxStack = GetItemData(source.itemId)?.maxStack ?? 99;
             int targetIdx = slotIndex;
 
-            for (int i = rangeStart; i < rangeEnd && !source.IsEmpty; i++)
+            // 1. Gộp vào slot cùng loại ở vùng đích
+            for (int i = start; i < end && !source.IsEmpty; i++)
             {
-                var target = slots[i];
-                if (!target.IsEmpty && target.itemId == source.itemId && target.count < maxStack)
+                if (!slots[i].IsEmpty && slots[i].itemId == source.itemId)
                 {
-                    int move = Mathf.Min(source.count, maxStack - target.count);
-                    target.count += move;
-                    source.Set(source.itemId, source.count - move);
-                    targetIdx = i;
+                    int moved = slots[i].Add(source.count, maxStack);
+                    if (moved > 0)
+                    {
+                        source.Remove(moved);
+                        targetIdx = i;
+                    }
                 }
             }
 
-            for (int i = rangeStart; i < rangeEnd && !source.IsEmpty; i++)
+            // 2. Điền phần còn lại vào ô trống đầu tiên ở vùng đích
+            if (!source.IsEmpty)
             {
-                if (slots[i].IsEmpty)
+                for (int i = start; i < end; i++)
                 {
-                    slots[i].Set(source.itemId, source.count);
-                    source.Clear();
-                    targetIdx = i;
-                    break;
+                    if (slots[i].IsEmpty)
+                    {
+                        slots[i].Set(source.itemId, source.count);
+                        source.Clear();
+                        targetIdx = i;
+                        break;
+                    }
                 }
             }
 
@@ -433,7 +431,7 @@ namespace HappyFarmer.Inventory
         }
 
         // =====================================================================
-        // ECONOMY (SELL & BUY IN INVENTORY)
+        // ECONOMY (FORWARD TO ECONOMY MANAGER)
         // =====================================================================
 
         public bool SellSlotItem(int slotIndex, int amount = 1) =>
@@ -442,13 +440,9 @@ namespace HappyFarmer.Inventory
         public bool SellAllInSlot(int slotIndex) =>
             EconomyManager.Instance != null && EconomyManager.Instance.SellAllInSlot(slotIndex);
 
-
-
         // =====================================================================
         // ITEM USAGE & WORLD INTERACTION
         // =====================================================================
-
-
 
         public bool DropSlotItem(int slotIndex, int amount = 1)
         {
@@ -502,7 +496,5 @@ namespace HappyFarmer.Inventory
                 DropSlotItem(selectedHotbarIndex, 1);
             }
         }
-
-
     }
 }
