@@ -30,6 +30,9 @@ namespace HappyFarmer.Inventory
         private readonly Dictionary<string, InventoryItemData> itemLookup = new Dictionary<string, InventoryItemData>();
         private readonly Dictionary<string, Sprite> spriteLookup = new Dictionary<string, Sprite>();
 
+        // Mỗi scene có InventoryManager riêng, nên tiền và túi đồ được giữ lại ở đây khi đổi map
+        private static int carriedBalance = -1;
+        private static List<InventorySlot> carriedSlots;
 
         public event Action OnInventoryChanged;
         public event Action<int> OnSelectedHotbarChanged;
@@ -69,6 +72,14 @@ namespace HappyFarmer.Inventory
             OnInventoryChanged?.Invoke();
             OnSelectedHotbarChanged?.Invoke(selectedHotbarIndex);
             OnBalanceChanged?.Invoke(currentBalance);
+        }
+
+        private void OnDestroy()
+        {
+            if (Instance != this) return;
+            carriedBalance = currentBalance;
+            carriedSlots = slots;
+            Instance = null;
         }
 
         private void Update()
@@ -157,6 +168,13 @@ namespace HappyFarmer.Inventory
 
         private void InitializeBalanceAndSlots()
         {
+            bool isCarriedOver = carriedSlots != null;
+            if (isCarriedOver)
+            {
+                currentBalance = carriedBalance;
+                slots = carriedSlots;
+            }
+
             if (currentBalance < 0)
             {
                 currentBalance = economyDatabase != null ? economyDatabase.startingBalance : 100;
@@ -174,7 +192,7 @@ namespace HappyFarmer.Inventory
                 if (!slots[i].IsEmpty) { isAllEmpty = false; break; }
             }
 
-            if (isAllEmpty && economyDatabase != null && economyDatabase.starterSlots != null)
+            if (isAllEmpty && !isCarriedOver && economyDatabase != null && economyDatabase.starterSlots != null)
             {
                 foreach (var starter in economyDatabase.starterSlots)
                 {

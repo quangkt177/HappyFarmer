@@ -30,6 +30,14 @@ namespace HappyFarmer.Inventory
         public Vector2 position;
     }
 
+    [Serializable]
+    public class ParcelPriceConfig
+    {
+        [Tooltip("Tên GameObject khu đất trên bản đồ (ví dụ: Parcel East)")]
+        public string parcelName;
+        [Min(0)] public int price = 150;
+    }
+
     [CreateAssetMenu(fileName = "EconomyDatabase", menuName = "Happy Farmer/Economy & Item Database", order = 1)]
     public class EconomyDatabaseSO : ScriptableObject
     {
@@ -54,12 +62,33 @@ namespace HappyFarmer.Inventory
         [Header("Vật phẩm rơi sẵn trên Bản đồ (Initial Pickups)")]
         public List<WorldPickupSpawnConfig> initialWorldPickups = new List<WorldPickupSpawnConfig>();
 
+        [Header("Sạp Gia Súc (Pasture Stall)")]
+        [Min(0)] public int chickBuyPrice = 40;
+        [Min(0)] public int calfBuyPrice = 120;
+        [Min(0)] public int chickenSellPrice = 70;
+        [Min(0)] public int cowSellPrice = 220;
+        [Min(1)] public int maxChickens = 12;
+        [Min(1)] public int maxCows = 8;
+
+        [Header("Giá mở Khu Đất (Parcels)")]
+        public List<ParcelPriceConfig> parcelPrices = new List<ParcelPriceConfig>();
+
         public int TotalSlots => Mathf.Max(1, hotbarSize) + Mathf.Max(1, backpackSize);
 
         public string FormatCurrency(int amount)
         {
             string sym = string.IsNullOrEmpty(currencySymbol) ? "Xu" : currencySymbol;
             return $"{amount:N0} {sym}";
+        }
+
+        public int GetParcelPrice(string parcelName, int fallback)
+        {
+            if (parcelPrices == null) return fallback;
+            foreach (var cfg in parcelPrices)
+            {
+                if (cfg != null && cfg.parcelName == parcelName) return cfg.price;
+            }
+            return fallback;
         }
 
         public void PopulateDefaultDataIfEmpty(Func<string, Sprite> spriteResolver = null)
@@ -183,6 +212,15 @@ namespace HappyFarmer.Inventory
                     new WorldPickupSpawnConfig { itemId = "seed_carrot", count = 2, position = new Vector2(9.6f, 8.5f) },
                     new WorldPickupSpawnConfig { itemId = "log", count = 2, position = new Vector2(6.2f, 5.2f) },
                     new WorldPickupSpawnConfig { itemId = "produce_strawberry", count = 1, position = new Vector2(23.5f, 10.2f) }
+                };
+            }
+
+            if (parcelPrices == null || parcelPrices.Count == 0)
+            {
+                parcelPrices = new List<ParcelPriceConfig>
+                {
+                    new ParcelPriceConfig { parcelName = "Parcel East", price = 150 },
+                    new ParcelPriceConfig { parcelName = "Parcel South", price = 300 }
                 };
             }
         }
