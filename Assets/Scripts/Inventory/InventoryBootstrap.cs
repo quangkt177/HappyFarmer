@@ -1,4 +1,5 @@
 using HappyFarmer.UI;
+using HappyFarmer.Economy;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -29,6 +30,12 @@ namespace HappyFarmer.Inventory
 
         public static void EnsureInventoryInScene()
         {
+            if (Object.FindObjectOfType<EconomyManager>() == null)
+            {
+                var econObj = new GameObject("EconomyManager");
+                econObj.AddComponent<EconomyManager>();
+            }
+
             if (Object.FindObjectOfType<InventoryManager>() == null)
             {
                 var managerObj = new GameObject("InventoryManager");

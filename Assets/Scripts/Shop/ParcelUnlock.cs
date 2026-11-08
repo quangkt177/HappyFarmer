@@ -1,4 +1,5 @@
 using HappyFarmer.Inventory;
+using HappyFarmer.Economy;
 using UnityEngine;
 
 namespace HappyFarmer.Shop
@@ -22,6 +23,8 @@ namespace HappyFarmer.Shop
         {
             get
             {
+                var econ = EconomyManager.Instance;
+                if (econ != null) return econ.GetParcelPrice(gameObject.name, fallbackPrice);
                 var db = InventoryManager.Instance != null ? InventoryManager.Instance.EconomyDatabase : null;
                 return db != null ? db.GetParcelPrice(gameObject.name, fallbackPrice) : fallbackPrice;
             }
@@ -53,15 +56,20 @@ namespace HappyFarmer.Shop
 
         private void TryUnlock(InventoryManager manager, int price)
         {
-            if (!manager.TrySpendCurrency(price))
+            var econ = EconomyManager.Instance;
+            bool success = econ != null ? econ.TrySpendCurrency(price) : manager.TrySpendCurrency(price);
+            string curName = econ != null ? econ.CurrencyName : manager.CurrencyName;
+            string curFmt = econ != null ? econ.FormatCurrency(price) : manager.FormatCurrency(price);
+
+            if (!success)
             {
-                manager.Notify($"Không đủ {manager.CurrencyName}! Cần {manager.FormatCurrency(price)} để mở {displayName}.");
+                manager.Notify($"Không đủ {curName}! Cần {curFmt} để mở {displayName}.");
                 return;
             }
 
             FarmSession.UnlockedParcels.Add(gameObject.name);
             ClearOvergrowth();
-            manager.Notify($"Đã mở {displayName} (-{manager.FormatCurrency(price)})!");
+            manager.Notify($"Đã mở {displayName} (-{curFmt})!");
         }
 
         private void ClearOvergrowth()

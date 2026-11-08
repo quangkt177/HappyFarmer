@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using HappyFarmer.Inventory;
+using HappyFarmer.Economy;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -78,6 +79,10 @@ namespace HappyFarmer.UI
 
         private void OnDestroy()
         {
+            if (EconomyManager.Instance != null)
+            {
+                EconomyManager.Instance.OnBalanceChanged -= OnBalanceChanged;
+            }
             if (InventoryManager.Instance == null) return;
             InventoryManager.Instance.OnInventoryChanged -= RefreshAll;
             InventoryManager.Instance.OnSelectedHotbarChanged -= OnHotbarSelectionChanged;
@@ -141,6 +146,12 @@ namespace HappyFarmer.UI
             manager.OnSelectedHotbarChanged += OnHotbarSelectionChanged;
             manager.OnBalanceChanged += OnBalanceChanged;
             manager.OnNotification += ShowToast;
+
+            if (EconomyManager.Instance != null)
+            {
+                EconomyManager.Instance.OnBalanceChanged -= OnBalanceChanged;
+                EconomyManager.Instance.OnBalanceChanged += OnBalanceChanged;
+            }
 
             inspectedSlotIndex = manager.SelectedHotbarIndex;
 
@@ -335,10 +346,14 @@ namespace HappyFarmer.UI
 
         private void RefreshCurrencyUI()
         {
+            var econ = EconomyManager.Instance;
             var manager = InventoryManager.Instance;
-            if (manager == null) return;
+            if (econ == null && manager == null) return;
 
-            string formatted = manager.FormatCurrency(manager.CurrentBalance);
+            string formatted = econ != null 
+                ? econ.FormatCurrency(econ.CurrentBalance) 
+                : manager.FormatCurrency(manager.CurrentBalance);
+
             if (hudCoinText != null) hudCoinText.text = formatted;
             if (modalCoinText != null) modalCoinText.text = formatted;
         }

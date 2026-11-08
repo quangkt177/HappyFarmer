@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using HappyFarmer.Inventory;
+using HappyFarmer.Economy;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -144,11 +145,22 @@ namespace HappyFarmer.Shop
             Unsubscribe();
             subscribedManager = manager;
             manager.OnInventoryChanged += Refresh;
-            manager.OnBalanceChanged += OnBalanceChanged;
+            if (EconomyManager.Instance != null)
+            {
+                EconomyManager.Instance.OnBalanceChanged += OnBalanceChanged;
+            }
+            else
+            {
+                manager.OnBalanceChanged += OnBalanceChanged;
+            }
         }
 
         private void Unsubscribe()
         {
+            if (EconomyManager.Instance != null)
+            {
+                EconomyManager.Instance.OnBalanceChanged -= OnBalanceChanged;
+            }
             if (subscribedManager == null) return;
             subscribedManager.OnInventoryChanged -= Refresh;
             subscribedManager.OnBalanceChanged -= OnBalanceChanged;
@@ -164,7 +176,10 @@ namespace HappyFarmer.Shop
 
             buyTabImage.color = isBuyTab ? TabActiveColor : TabIdleColor;
             sellTabImage.color = isBuyTab ? TabIdleColor : TabActiveColor;
-            balanceText.text = manager != null ? $"Ví: {manager.FormatCurrency(manager.CurrentBalance)}" : string.Empty;
+            var econ = EconomyManager.Instance;
+            balanceText.text = econ != null 
+                ? $"Ví: {econ.FormatCurrency(econ.CurrentBalance)}" 
+                : (manager != null ? $"Ví: {manager.FormatCurrency(manager.CurrentBalance)}" : string.Empty);
 
             for (int i = listContent.childCount - 1; i >= 0; i--)
             {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using HappyFarmer.Gameplay;
 using HappyFarmer.Inventory;
+using HappyFarmer.Economy;
 using UnityEngine;
 
 namespace HappyFarmer.Shop
@@ -86,7 +87,11 @@ namespace HappyFarmer.Shop
         private static List<ShopOffer> GetSeedOffers(InventoryManager manager)
         {
             var offers = new List<ShopOffer>();
-            foreach (var item in manager.EconomyDatabase.items)
+            var econ = EconomyManager.Instance;
+            var db = econ != null ? econ.Database : manager.EconomyDatabase;
+            if (db == null || db.items == null) return offers;
+
+            foreach (var item in db.items)
             {
                 if (item == null || !item.CanBuy) continue;
                 string id = item.id;
@@ -95,7 +100,7 @@ namespace HappyFarmer.Shop
                     title = item.displayName,
                     detail = $"Đang có: {CountItem(manager, id)}",
                     icon = item.icon,
-                    priceText = manager.FormatCurrency(item.buyPrice),
+                    priceText = econ != null ? econ.FormatCurrency(item.buyPrice) : manager.FormatCurrency(item.buyPrice),
                     actionLabel = "Mua 1",
                     action = () => BuyItem(manager, id, 1),
                     secondaryLabel = "Mua 5",
@@ -108,7 +113,11 @@ namespace HappyFarmer.Shop
         private static List<ShopOffer> GetProduceOffers(InventoryManager manager)
         {
             var offers = new List<ShopOffer>();
-            foreach (var item in manager.EconomyDatabase.items)
+            var econ = EconomyManager.Instance;
+            var db = econ != null ? econ.Database : manager.EconomyDatabase;
+            if (db == null || db.items == null) return offers;
+
+            foreach (var item in db.items)
             {
                 if (item == null || !item.CanSell || item.category == ItemCategory.Seed) continue;
                 int owned = CountItem(manager, item.id);
@@ -120,7 +129,7 @@ namespace HappyFarmer.Shop
                     title = item.displayName,
                     detail = $"{item.GetCategoryDisplayName()}  |  Đang có: {owned}",
                     icon = item.icon,
-                    priceText = manager.FormatCurrency(item.sellPrice),
+                    priceText = econ != null ? econ.FormatCurrency(item.sellPrice) : manager.FormatCurrency(item.sellPrice),
                     actionLabel = "Bán 1",
                     action = () => SellItem(manager, id, 1),
                     secondaryLabel = "Bán Hết",
@@ -132,7 +141,9 @@ namespace HappyFarmer.Shop
 
         private static List<ShopOffer> GetBabyAnimalOffers(InventoryManager manager)
         {
-            var db = manager.EconomyDatabase;
+            var econ = EconomyManager.Instance;
+            var db = econ != null ? econ.Database : manager.EconomyDatabase;
+            if (db == null) return new List<ShopOffer>();
             return new List<ShopOffer>
             {
                 BabyOffer(manager, AnimalGrowth.Species.Chicken, "Gà Con", db.chickBuyPrice, db.maxChickens),
@@ -142,7 +153,9 @@ namespace HappyFarmer.Shop
 
         private static List<ShopOffer> GetAdultAnimalOffers(InventoryManager manager)
         {
-            var db = manager.EconomyDatabase;
+            var econ = EconomyManager.Instance;
+            var db = econ != null ? econ.Database : manager.EconomyDatabase;
+            if (db == null) return new List<ShopOffer>();
             return new List<ShopOffer>
             {
                 AdultOffer(manager, AnimalGrowth.Species.Chicken, "Gà Mái", db.chickenSellPrice),
@@ -153,12 +166,13 @@ namespace HappyFarmer.Shop
         private static ShopOffer BabyOffer(InventoryManager manager, AnimalGrowth.Species species, string name, int price, int maxCount)
         {
             int total = AnimalMarket.CountAnimals(species);
+            var econ = EconomyManager.Instance;
             return new ShopOffer
             {
                 title = name,
                 detail = $"Thả vào chuồng  |  Trong chuồng: {total}/{maxCount}",
                 icon = AnimalMarket.GetIcon(species),
-                priceText = manager.FormatCurrency(price),
+                priceText = econ != null ? econ.FormatCurrency(price) : manager.FormatCurrency(price),
                 actionLabel = "Mua",
                 action = () => BuyAnimal(manager, species, name, price, maxCount)
             };
@@ -167,12 +181,13 @@ namespace HappyFarmer.Shop
         private static ShopOffer AdultOffer(InventoryManager manager, AnimalGrowth.Species species, string name, int price)
         {
             int adults = AnimalMarket.CountAnimals(species, AnimalGrowth.GrowthStage.Adult);
+            var econ = EconomyManager.Instance;
             return new ShopOffer
             {
                 title = name,
                 detail = $"Chỉ bán con đã lớn  |  Đang có: {adults}",
                 icon = AnimalMarket.GetIcon(species),
-                priceText = manager.FormatCurrency(price),
+                priceText = econ != null ? econ.FormatCurrency(price) : manager.FormatCurrency(price),
                 actionLabel = "Bán 1",
                 action = () => SellAnimal(manager, species, name, price)
             };
@@ -199,9 +214,10 @@ namespace HappyFarmer.Shop
             if (data == null || !data.CanBuy) return false;
 
             int cost = data.buyPrice * amount;
-            if (manager.CurrentBalance < cost)
+            var econ = EconomyManager.Instance;
+            if (econ != null && !econ.CanAfford(cost))
             {
-                manager.Notify($"Không đủ {manager.CurrencyName}! Cần {manager.FormatCurrency(cost)}.");
+                manager.Notify($"Không đủ {econ.CurrencyName}! Cần {econ.FormatCurrency(cost)}.");
                 return false;
             }
             if (!manager.CanFitItem(itemId, amount))
@@ -210,14 +226,28 @@ namespace HappyFarmer.Shop
                 return false;
             }
 
-            manager.TrySpendCurrency(cost);
+            if (econ != null)
+            {
+                econ.TrySpendCurrency(cost);
+            }
+            else
+            {
+                manager.TrySpendCurrency(cost);
+            }
             manager.AddItem(itemId, amount, false);
-            manager.Notify($"Đã mua {amount} {data.displayName} (-{manager.FormatCurrency(cost)})");
+            string formattedCost = econ != null ? econ.FormatCurrency(cost) : manager.FormatCurrency(cost);
+            manager.Notify($"Đã mua {amount} {data.displayName} (-{formattedCost})");
             return true;
         }
 
         private static bool SellItem(InventoryManager manager, string itemId, int amount)
         {
+            var econ = EconomyManager.Instance;
+            if (econ != null)
+            {
+                return econ.SellItemById(itemId, amount);
+            }
+
             var data = manager.GetItemData(itemId);
             if (data == null || !data.CanSell) return false;
 
@@ -246,9 +276,10 @@ namespace HappyFarmer.Shop
                 manager.Notify($"Chuồng đã đủ {maxCount} con, không thả thêm {name} được!");
                 return false;
             }
-            if (manager.CurrentBalance < price)
+            var econ = EconomyManager.Instance;
+            if (econ != null && !econ.CanAfford(price))
             {
-                manager.Notify($"Không đủ {manager.CurrencyName}! Cần {manager.FormatCurrency(price)}.");
+                manager.Notify($"Không đủ {econ.CurrencyName}! Cần {econ.FormatCurrency(price)}.");
                 return false;
             }
             if (!AnimalMarket.BuyBaby(species))
@@ -257,8 +288,16 @@ namespace HappyFarmer.Shop
                 return false;
             }
 
-            manager.TrySpendCurrency(price);
-            manager.Notify($"Đã mua 1 {name} (-{manager.FormatCurrency(price)}), đã thả vào chuồng!");
+            if (econ != null)
+            {
+                econ.TrySpendCurrency(price);
+            }
+            else
+            {
+                manager.TrySpendCurrency(price);
+            }
+            string formattedPrice = econ != null ? econ.FormatCurrency(price) : manager.FormatCurrency(price);
+            manager.Notify($"Đã mua 1 {name} (-{formattedPrice}), đã thả vào chuồng!");
             return true;
         }
 
@@ -270,8 +309,17 @@ namespace HappyFarmer.Shop
                 return false;
             }
 
-            manager.AddCurrency(price);
-            manager.Notify($"Đã bán 1 {name} (+{manager.FormatCurrency(price)})");
+            var econ = EconomyManager.Instance;
+            if (econ != null)
+            {
+                econ.AddCurrency(price);
+            }
+            else
+            {
+                manager.AddCurrency(price);
+            }
+            string formattedPrice = econ != null ? econ.FormatCurrency(price) : manager.FormatCurrency(price);
+            manager.Notify($"Đã bán 1 {name} (+{formattedPrice})");
             return true;
         }
     }

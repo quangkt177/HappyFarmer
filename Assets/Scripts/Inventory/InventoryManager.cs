@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using HappyFarmer.Economy;
 
 namespace HappyFarmer.Inventory
 {
@@ -23,15 +24,13 @@ namespace HappyFarmer.Inventory
         [SerializeField] private KeyCode dropKey = KeyCode.Q;
 
         [Header("Runtime State")]
-        [SerializeField] private int currentBalance = -1;
         [SerializeField] private int selectedHotbarIndex;
         [SerializeField] private List<InventorySlot> slots = new List<InventorySlot>();
 
         private readonly Dictionary<string, InventoryItemData> itemLookup = new Dictionary<string, InventoryItemData>();
         private readonly Dictionary<string, Sprite> spriteLookup = new Dictionary<string, Sprite>();
 
-        // Mỗi scene có InventoryManager riêng, nên tiền và túi đồ được giữ lại ở đây khi đổi map
-        private static int carriedBalance = -1;
+        // Mỗi scene có InventoryManager riêng, nên túi đồ được giữ lại ở đây khi đổi map
         private static List<InventorySlot> carriedSlots;
 
         public event Action OnInventoryChanged;
@@ -43,11 +42,9 @@ namespace HappyFarmer.Inventory
         public int BackpackSlotCount => economyDatabase != null ? Mathf.Max(1, economyDatabase.backpackSize) : DefaultBackpackSize;
         public int TotalSlotCount => HotbarSlotCount + BackpackSlotCount;
         public int SelectedHotbarIndex => selectedHotbarIndex;
-        public int CurrentBalance => currentBalance;
+        public int CurrentBalance => EconomyManager.Instance != null ? EconomyManager.Instance.CurrentBalance : 0;
         public EconomyDatabaseSO EconomyDatabase => economyDatabase;
-        public string CurrencyName => economyDatabase != null && !string.IsNullOrEmpty(economyDatabase.currencyName)
-            ? economyDatabase.currencyName
-            : "Xu Vàng";
+        public string CurrencyName => EconomyManager.Instance != null ? EconomyManager.Instance.CurrencyName : "Xu Vàng";
 
         public Transform PlayerTransform { get; private set; }
 
@@ -62,7 +59,17 @@ namespace HappyFarmer.Inventory
 
             LoadSprites();
             LoadDatabase();
-            InitializeBalanceAndSlots();
+            InitializeSlots();
+
+            if (EconomyManager.Instance != null)
+            {
+                EconomyManager.Instance.OnBalanceChanged += HandleBalanceChanged;
+            }
+        }
+
+        private void HandleBalanceChanged(int balance)
+        {
+            OnBalanceChanged?.Invoke(balance);
         }
 
         private void Start()
@@ -71,13 +78,16 @@ namespace HappyFarmer.Inventory
             SpawnConfiguredWorldPickups();
             OnInventoryChanged?.Invoke();
             OnSelectedHotbarChanged?.Invoke(selectedHotbarIndex);
-            OnBalanceChanged?.Invoke(currentBalance);
+            OnBalanceChanged?.Invoke(CurrentBalance);
         }
 
         private void OnDestroy()
         {
             if (Instance != this) return;
-            carriedBalance = currentBalance;
+            if (EconomyManager.Instance != null)
+            {
+                EconomyManager.Instance.OnBalanceChanged -= HandleBalanceChanged;
+            }
             carriedSlots = slots;
             Instance = null;
         }
@@ -88,7 +98,14 @@ namespace HappyFarmer.Inventory
             HandleHotbarInput();
         }
 
-        public void SetEconomyDatabase(EconomyDatabaseSO db) => economyDatabase = db;
+        public void SetEconomyDatabase(EconomyDatabaseSO db)
+        {
+            economyDatabase = db;
+            if (EconomyManager.Instance != null)
+            {
+                EconomyManager.Instance.SetEconomyDatabase(db);
+            }
+        }
         public void SetPreloadedSprites(List<Sprite> sprites) => preloadedSprites = sprites ?? new List<Sprite>();
         public void Notify(string message) => OnNotification?.Invoke(message);
 
@@ -166,18 +183,12 @@ namespace HappyFarmer.Inventory
 
         }
 
-        private void InitializeBalanceAndSlots()
+        private void InitializeSlots()
         {
             bool isCarriedOver = carriedSlots != null;
             if (isCarriedOver)
             {
-                currentBalance = carriedBalance;
                 slots = carriedSlots;
-            }
-
-            if (currentBalance < 0)
-            {
-                currentBalance = economyDatabase != null ? economyDatabase.startingBalance : 100;
             }
 
             if (slots == null) slots = new List<InventorySlot>(TotalSlotCount);
@@ -230,22 +241,12 @@ namespace HappyFarmer.Inventory
             (!string.IsNullOrEmpty(name) && spriteLookup.TryGetValue(name, out var sp)) ? sp : null;
 
         public string FormatCurrency(int amount) =>
-            economyDatabase != null ? economyDatabase.FormatCurrency(amount) : $"{amount:N0} Xu";
+            EconomyManager.Instance != null ? EconomyManager.Instance.FormatCurrency(amount) : $"{amount:N0} Xu";
 
-        public void AddCurrency(int amount)
-        {
-            if (amount <= 0) return;
-            currentBalance += amount;
-            OnBalanceChanged?.Invoke(currentBalance);
-        }
+        public void AddCurrency(int amount) => EconomyManager.Instance?.AddCurrency(amount);
 
-        public bool TrySpendCurrency(int amount)
-        {
-            if (amount < 0 || currentBalance < amount) return false;
-            currentBalance -= amount;
-            OnBalanceChanged?.Invoke(currentBalance);
-            return true;
-        }
+        public bool TrySpendCurrency(int amount) =>
+            EconomyManager.Instance != null && EconomyManager.Instance.TrySpendCurrency(amount);
 
         public void SelectHotbarSlot(int index)
         {
@@ -435,32 +436,11 @@ namespace HappyFarmer.Inventory
         // ECONOMY (SELL & BUY IN INVENTORY)
         // =====================================================================
 
-        public bool SellSlotItem(int slotIndex, int amount = 1)
-        {
-            var slot = GetSlot(slotIndex);
-            if (slot == null || slot.IsEmpty || amount <= 0) return false;
+        public bool SellSlotItem(int slotIndex, int amount = 1) =>
+            EconomyManager.Instance != null && EconomyManager.Instance.SellSlotItem(slotIndex, amount);
 
-            var data = GetItemData(slot.itemId);
-            if (data == null || !data.CanSell)
-            {
-                Notify($"{data?.displayName ?? "Vật phẩm"} không thể bán!");
-                return false;
-            }
-
-            int count = Mathf.Min(amount, slot.count);
-            int earned = count * data.sellPrice;
-
-            RemoveItemAt(slotIndex, count);
-            AddCurrency(earned);
-            Notify($"Đã bán {count} {data.displayName} (+{FormatCurrency(earned)})!");
-            return true;
-        }
-
-        public bool SellAllInSlot(int slotIndex)
-        {
-            var slot = GetSlot(slotIndex);
-            return slot != null && !slot.IsEmpty && SellSlotItem(slotIndex, slot.count);
-        }
+        public bool SellAllInSlot(int slotIndex) =>
+            EconomyManager.Instance != null && EconomyManager.Instance.SellAllInSlot(slotIndex);
 
 
 

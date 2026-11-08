@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using HappyFarmer.Inventory;
+using HappyFarmer.Economy;
 using HappyFarmer.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -732,6 +733,18 @@ namespace HappyFarmer.EditorTools
         public static void BuildInventorySystem(Dictionary<string, Sprite> sprites)
         {
             var economyDb = EnsureEconomyDatabaseAsset(sprites);
+
+            var econ = Object.FindObjectOfType<EconomyManager>();
+            if (econ == null)
+            {
+                var econObj = new GameObject("EconomyManager");
+                econ = econObj.AddComponent<EconomyManager>();
+            }
+            if (economyDb != null)
+            {
+                econ.SetEconomyDatabase(economyDb);
+                EditorUtility.SetDirty(econ);
+            }
 
             var manager = Object.FindObjectOfType<InventoryManager>();
             if (manager == null)
