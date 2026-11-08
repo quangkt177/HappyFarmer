@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using HappyFarmer.Farming;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace HappyFarmer.Inventory
 {
@@ -22,9 +20,7 @@ namespace HappyFarmer.Inventory
         [SerializeField] private List<Sprite> preloadedSprites = new List<Sprite>();
 
         [Header("Controls & Interaction Settings")]
-        [SerializeField] private KeyCode interactKey = KeyCode.E;
         [SerializeField] private KeyCode dropKey = KeyCode.Q;
-        [SerializeField] private float interactRadius = 1.3f;
 
         [Header("Runtime State")]
         [SerializeField] private int currentBalance = -1;
@@ -33,7 +29,7 @@ namespace HappyFarmer.Inventory
 
         private readonly Dictionary<string, InventoryItemData> itemLookup = new Dictionary<string, InventoryItemData>();
         private readonly Dictionary<string, Sprite> spriteLookup = new Dictionary<string, Sprite>();
-        private readonly Dictionary<string, ForagePropConfig> forageLookup = new Dictionary<string, ForagePropConfig>();
+
 
         public event Action OnInventoryChanged;
         public event Action<int> OnSelectedHotbarChanged;
@@ -56,82 +52,29 @@ namespace HappyFarmer.Inventory
         {
             if (Instance != null && Instance != this)
             {
-                if (Instance.economyDatabase == null && economyDatabase != null)
-                {
-                    Instance.economyDatabase = economyDatabase;
-                }
-                if (preloadedSprites != null && preloadedSprites.Count > 0)
-                {
-                    Instance.MergePreloadedSprites(preloadedSprites);
-                }
                 Destroy(gameObject);
                 return;
             }
             Instance = this;
-            if (transform.parent == null)
-            {
-                DontDestroyOnLoad(gameObject);
-            }
 
             LoadSprites();
             LoadDatabase();
             InitializeBalanceAndSlots();
         }
 
-        private void OnEnable()
-        {
-            SceneManager.sceneLoaded -= OnSceneLoaded;
-            SceneManager.sceneLoaded += OnSceneLoaded;
-        }
-
-        private void OnDisable()
-        {
-            SceneManager.sceneLoaded -= OnSceneLoaded;
-        }
-
         private void Start()
         {
             ResolveSceneReferences();
-            if (SceneManager.GetActiveScene().name == "FarmMap")
-            {
-                SpawnConfiguredWorldPickups();
-            }
+            SpawnConfiguredWorldPickups();
             OnInventoryChanged?.Invoke();
             OnSelectedHotbarChanged?.Invoke(selectedHotbarIndex);
             OnBalanceChanged?.Invoke(currentBalance);
-        }
-
-        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            PlayerTransform = null;
-
-            ResolveSceneReferences();
-            if (scene.name == "FarmMap")
-            {
-                SpawnConfiguredWorldPickups();
-            }
-            OnInventoryChanged?.Invoke();
-            OnSelectedHotbarChanged?.Invoke(selectedHotbarIndex);
-            OnBalanceChanged?.Invoke(currentBalance);
-        }
-
-        private void MergePreloadedSprites(List<Sprite> sprites)
-        {
-            if (sprites == null) return;
-            foreach (var s in sprites)
-            {
-                if (s != null && !spriteLookup.ContainsKey(s.name))
-                {
-                    spriteLookup[s.name] = s;
-                }
-            }
         }
 
         private void Update()
         {
             if (PlayerTransform == null) ResolveSceneReferences();
             HandleHotbarInput();
-            HandleWorldInput();
         }
 
         public void SetEconomyDatabase(EconomyDatabaseSO db) => economyDatabase = db;
@@ -149,6 +92,8 @@ namespace HappyFarmer.Inventory
                 var player = GameObject.FindWithTag("Player") ?? GameObject.Find("Player");
                 if (player != null) PlayerTransform = player.transform;
             }
+
+
         }
 
         private void LoadSprites()
@@ -207,17 +152,7 @@ namespace HappyFarmer.Inventory
                 itemLookup[item.id] = item;
             }
 
-            forageLookup.Clear();
-            if (economyDatabase.forageRules != null)
-            {
-                foreach (var rule in economyDatabase.forageRules)
-                {
-                    if (rule != null && !string.IsNullOrEmpty(rule.sceneObjectName))
-                    {
-                        forageLookup[rule.sceneObjectName] = rule;
-                    }
-                }
-            }
+
         }
 
         private void InitializeBalanceAndSlots()
@@ -509,66 +444,13 @@ namespace HappyFarmer.Inventory
             return slot != null && !slot.IsEmpty && SellSlotItem(slotIndex, slot.count);
         }
 
-        public bool BuyItem(string itemId, int amount = 1)
-        {
-            var data = GetItemData(itemId);
-            if (data == null || !data.CanBuy || amount <= 0) return false;
 
-            int cost = data.buyPrice * amount;
-            if (currentBalance < cost)
-            {
-                Notify($"Không đủ {CurrencyName}! Cần {FormatCurrency(cost)}.");
-                return false;
-            }
-
-            if (!CanFitItem(itemId, amount))
-            {
-                Notify("Túi đồ đã đầy, không thể mua thêm!");
-                return false;
-            }
-
-            if (!TrySpendCurrency(cost)) return false;
-
-            AddItem(itemId, amount, false);
-            Notify($"Đã mua +{amount} {data.displayName} (-{FormatCurrency(cost)})!");
-            return true;
-        }
 
         // =====================================================================
         // ITEM USAGE & WORLD INTERACTION
         // =====================================================================
 
-        public bool UseSlotItem(int slotIndex)
-        {
-            var slot = GetSlot(slotIndex);
-            if (slot == null || slot.IsEmpty)
-            {
-                Notify("Ô đang chọn chưa có vật phẩm.");
-                return false;
-            }
 
-            var data = GetItemData(slot.itemId);
-            if (data == null) return false;
-
-            switch (data.category)
-            {
-                case ItemCategory.Seed:
-                    if (PlayerTransform == null) ResolveSceneReferences();
-                    if (!FarmingManager.EnsureInstance().TryPlantSeed(data, PlayerTransform, this)) return false;
-                    RemoveItemAt(slotIndex, 1);
-                    Notify($"Đã gieo {data.displayName}! Cây đang lớn...");
-                    return true;
-
-                case ItemCategory.Produce:
-                case ItemCategory.Forage:
-                    RemoveItemAt(slotIndex, 1);
-                    Notify($"Đã sử dụng {data.displayName}!");
-                    return true;
-
-                default:
-                    return DropSlotItem(slotIndex, 1);
-            }
-        }
 
         public bool DropSlotItem(int slotIndex, int amount = 1)
         {
@@ -616,56 +498,13 @@ namespace HappyFarmer.Inventory
                 int dir = scroll > 0f ? -1 : 1;
                 SelectHotbarSlot((selectedHotbarIndex + dir + HotbarSlotCount) % HotbarSlotCount);
             }
-        }
 
-        private void HandleWorldInput()
-        {
-            if (Input.GetKeyDown(interactKey))
-            {
-                if (!FarmingManager.EnsureInstance().TryHarvestNearbyCrop(PlayerTransform, interactRadius, this) && !TryForageNearbySceneProp())
-                {
-                    UseSlotItem(selectedHotbarIndex);
-                }
-            }
             if (Input.GetKeyDown(dropKey))
             {
                 DropSlotItem(selectedHotbarIndex, 1);
             }
         }
 
-        private bool TryForageNearbySceneProp()
-        {
-            if (PlayerTransform == null || forageLookup.Count == 0) return false;
 
-            SpriteRenderer bestTarget = null;
-            ForagePropConfig matchedRule = null;
-            float bestDist = interactRadius;
-
-            foreach (var sr in FindObjectsOfType<SpriteRenderer>())
-            {
-                if (sr == null || sr.gameObject == PlayerTransform.gameObject) continue;
-                if (sr.GetComponent<WorldItemPickup>() != null) continue;
-
-                if (forageLookup.TryGetValue(sr.gameObject.name, out var rule))
-                {
-                    float d = Vector2.Distance(PlayerTransform.position, sr.transform.position);
-                    if (d <= bestDist)
-                    {
-                        bestDist = d;
-                        bestTarget = sr;
-                        matchedRule = rule;
-                    }
-                }
-            }
-
-            if (bestTarget == null || matchedRule == null) return false;
-
-            if (AddItem(matchedRule.rewardItemId, matchedRule.amount))
-            {
-                Destroy(bestTarget.gameObject);
-                return true;
-            }
-            return false;
-        }
     }
 }

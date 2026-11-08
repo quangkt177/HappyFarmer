@@ -40,16 +40,12 @@ namespace HappyFarmer.UI
         [SerializeField] private UnityEngine.UI.Text detailDescriptionText;
 
         [Header("Action & Economy Buttons")]
-        [SerializeField] private UnityEngine.UI.Button useButton;
-        [SerializeField] private UnityEngine.UI.Text useButtonText;
         [SerializeField] private UnityEngine.UI.Button dropButton;
         [SerializeField] private UnityEngine.UI.Button sortButton;
         [SerializeField] private UnityEngine.UI.Button sellOneButton;
         [SerializeField] private UnityEngine.UI.Text sellOneButtonText;
         [SerializeField] private UnityEngine.UI.Button sellAllButton;
         [SerializeField] private UnityEngine.UI.Text sellAllButtonText;
-        [SerializeField] private UnityEngine.UI.Button buyOneButton;
-        [SerializeField] private UnityEngine.UI.Text buyOneButtonText;
         [SerializeField] private UnityEngine.UI.Button closeBackpackButton;
 
         [Header("Toast & Drag Ghost")]
@@ -73,6 +69,7 @@ namespace HappyFarmer.UI
 
         private void Awake()
         {
+            CleanObsoleteButtons();
             ConfigureCrispCanvas();
             GenerateThemeSprites();
             EnsureUIHierarchy();
@@ -182,12 +179,10 @@ namespace HappyFarmer.UI
         {
             BindButton(bagToggleButton, ToggleBackpack);
             BindButton(closeBackpackButton, () => SetBackpackOpen(false));
-            BindButton(useButton, () => ExecuteAndRefresh(m => m.UseSlotItem(inspectedSlotIndex)));
             BindButton(dropButton, () => ExecuteAndRefresh(m => m.DropSlotItem(inspectedSlotIndex, 1)));
             BindButton(sortButton, () => ExecuteAndRefresh(m => m.SortBackpack()));
             BindButton(sellOneButton, () => ExecuteAndRefresh(m => m.SellSlotItem(inspectedSlotIndex, 1)));
             BindButton(sellAllButton, () => ExecuteAndRefresh(m => m.SellAllInSlot(inspectedSlotIndex)));
-            BindButton(buyOneButton, OnBuyOneClicked);
 
             int hotbarCount = InventoryManager.HotbarSize;
             for (int i = 0; i < slotUIs.Count; i++)
@@ -214,15 +209,7 @@ namespace HappyFarmer.UI
             RefreshAll();
         }
 
-        private void OnBuyOneClicked()
-        {
-            var manager = InventoryManager.Instance;
-            var slot = manager != null ? manager.GetSlot(inspectedSlotIndex) : null;
-            if (slot == null || slot.IsEmpty) return;
 
-            manager.BuyItem(slot.itemId, 1);
-            RefreshAll();
-        }
 
         public void ToggleBackpack()
         {
@@ -390,12 +377,12 @@ namespace HappyFarmer.UI
 
             if (data == null)
             {
-                activeItemLabel.text = $"Tay không  •  [E] Thu hoạch / Hái lượm   [{toggleKey}] Mở Túi Đồ & Bán Hàng";
+                activeItemLabel.text = $"Tay không   •   [{toggleKey}] Mở Túi Đồ & Bán Hàng   [Q] Thả món đồ";
                 return;
             }
 
             string priceInfo = data.CanSell ? $"  |  Giá bán: {manager.FormatCurrency(data.sellPrice)}" : string.Empty;
-            activeItemLabel.text = $"{data.displayName} (x{slot.count}){priceInfo}   •   [E] {data.GetActionLabel()}   [{toggleKey}] Túi Đồ";
+            activeItemLabel.text = $"{data.displayName} (x{slot.count}){priceInfo}   •   [{toggleKey}] Túi Đồ   [Q] Thả món đồ";
         }
 
         private void RefreshDetailsPanel(InventoryManager manager)
@@ -420,11 +407,9 @@ namespace HappyFarmer.UI
                         "• Kéo & Thả chuột trái để đổi chỗ, Chuột Phải để chuyển nhanh.";
                 }
 
-                SetButtonState(useButton, useButtonText, false, "Sử Dụng");
                 if (dropButton != null) dropButton.interactable = false;
                 SetButtonState(sellOneButton, sellOneButtonText, false, "Bán 1");
                 SetButtonState(sellAllButton, sellAllButtonText, false, "Bán Hết");
-                if (buyOneButton != null) buyOneButton.gameObject.SetActive(false);
                 return;
             }
 
@@ -443,32 +428,18 @@ namespace HappyFarmer.UI
             int stackValue = slot.count * data.sellPrice;
             if (detailPriceText != null)
             {
-                if (data.CanSell && data.CanBuy)
-                    detailPriceText.text = $"Giá bán: {manager.FormatCurrency(data.sellPrice)}/món  •  Mua: {manager.FormatCurrency(data.buyPrice)}";
-                else if (data.CanSell)
+                if (data.CanSell)
                     detailPriceText.text = $"Giá bán: {manager.FormatCurrency(data.sellPrice)} / món  (Tổng: {manager.FormatCurrency(stackValue)})";
                 else
                     detailPriceText.text = "Không thể bán";
             }
 
-            SetButtonState(useButton, useButtonText, true, data.GetActionLabel());
             if (dropButton != null) dropButton.interactable = true;
 
             SetButtonState(sellOneButton, sellOneButtonText, data.CanSell,
                 data.CanSell ? $"Bán 1 (+{manager.FormatCurrency(data.sellPrice)})" : "Không Bán");
             SetButtonState(sellAllButton, sellAllButtonText, data.CanSell,
                 data.CanSell ? $"Bán Hết (+{manager.FormatCurrency(stackValue)})" : "Bán Hết");
-
-            if (buyOneButton != null)
-            {
-                buyOneButton.gameObject.SetActive(data.CanBuy);
-                if (data.CanBuy)
-                {
-                    SetButtonState(buyOneButton, buyOneButtonText,
-                        manager.CurrentBalance >= data.buyPrice,
-                        $"Mua +1 (-{manager.FormatCurrency(data.buyPrice)})");
-                }
-            }
         }
 
         private static void SetButtonState(UnityEngine.UI.Button btn, UnityEngine.UI.Text label, bool interactable, string text)
@@ -481,8 +452,30 @@ namespace HappyFarmer.UI
         // DYNAMIC UI HIERARCHY BUILDER
         // =====================================================================
 
-        public void EnsureUIHierarchy()
+                private void CleanObsoleteButtons()
         {
+            var allTransforms = GetComponentsInChildren<Transform>(true);
+            foreach (var t in allTransforms)
+            {
+                if (t != null && (t.gameObject.name == "UseButton" || t.gameObject.name == "BuyOneButton"))
+                {
+                    t.gameObject.SetActive(false);
+                    t.SetParent(null);
+                    if (Application.isPlaying)
+                    {
+                        Destroy(t.gameObject);
+                    }
+                    else
+                    {
+                        DestroyImmediate(t.gameObject);
+                    }
+                }
+            }
+        }
+
+public void EnsureUIHierarchy()
+        {
+            CleanObsoleteButtons();
             if (hotbarRoot != null &&
                 backpackModalRoot != null &&
                 slotUIs.Count == InventoryManager.TotalSlots &&
@@ -720,12 +713,8 @@ namespace HappyFarmer.UI
                 new Color(0.82f, 0.56f, 0.14f, 1f), out sellOneButtonText);
             sellAllButton = CreateLayoutButton("SellAllButton", economyBar, font, "Bán Hết",
                 new Color(0.76f, 0.39f, 0.14f, 1f), out sellAllButtonText);
-            buyOneButton = CreateLayoutButton("BuyOneButton", economyBar, font, "Mua +1",
-                new Color(0.24f, 0.56f, 0.45f, 1f), out buyOneButtonText);
 
             var actionsBar = CreateButtonRow("ActionButtonsRow", rightPanel.transform, 12f, 52f, 8f);
-            useButton = CreateLayoutButton("UseButton", actionsBar, font, "Gieo Hạt",
-                new Color(0.35f, 0.62f, 0.25f, 1f), out useButtonText);
             dropButton = CreateLayoutButton("DropButton", actionsBar, font, "Thả 1 Món",
                 new Color(0.68f, 0.43f, 0.22f, 1f), out _);
             sortButton = CreateLayoutButton("SortButton", actionsBar, font, "Sắp Xếp",
