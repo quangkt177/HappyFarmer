@@ -121,7 +121,7 @@ namespace HappyFarmer.Inventory
                         ItemCategory.Seed, "seed_pumpkin", sellPrice: 15, canBuy: true, buyPrice: 30,
                         cropKey: "pumpkin", harvestId: "produce_pumpkin", spriteResolver: spriteResolver),
 
-                    // Nông sản thu hoạch
+                    // Nông sản thu hoạch (Thường)
                     CreateEntry("produce_carrot", "Cà Rốt Tươi",
                         "Củ cà rốt giòn ngọt vừa thu hoạch. Có thể bán lấy Xu hoặc sử dụng ngay.",
                         ItemCategory.Produce, "produce_carrot", sellPrice: 18, canBuy: false, buyPrice: 0,
@@ -141,6 +141,36 @@ namespace HappyFarmer.Inventory
                         "Quả bí ngô tròn đầy đặn, nông sản giá trị cao của nông trại.",
                         ItemCategory.Produce, "produce_pumpkin", sellPrice: 50, canBuy: false, buyPrice: 0,
                         spriteResolver: spriteResolver),
+
+                    // Nông sản VIP - Bạc (Giá x1.5)
+                    CreateEntry("produce_carrot_silver", "Cà Rốt (Bạc)", "Nông sản phẩm cấp Bạc. Chất lượng vượt trội, bán được giá cao hơn bình thường.",
+                        ItemCategory.Produce, "produce_carrot_silver", sellPrice: 27, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_cauliflower_silver", "Súp Lơ (Bạc)", "Nông sản phẩm cấp Bạc. Chất lượng vượt trội, bán được giá cao hơn bình thường.",
+                        ItemCategory.Produce, "produce_cauliflower_silver", sellPrice: 39, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_strawberry_silver", "Dâu Tây (Bạc)", "Nông sản phẩm cấp Bạc. Chất lượng vượt trội, bán được giá cao hơn bình thường.",
+                        ItemCategory.Produce, "produce_strawberry_silver", sellPrice: 52, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_pumpkin_silver", "Bí Ngô (Bạc)", "Nông sản phẩm cấp Bạc. Chất lượng vượt trội, bán được giá cao hơn bình thường.",
+                        ItemCategory.Produce, "produce_pumpkin_silver", sellPrice: 75, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+
+                    // Nông sản VIP - Vàng (Giá x2.0)
+                    CreateEntry("produce_carrot_gold", "Cà Rốt (Vàng)", "Nông sản phẩm cấp Vàng quý hiếm. Bán được giá cao gấp đôi bình thường.",
+                        ItemCategory.Produce, "produce_carrot_gold", sellPrice: 36, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_cauliflower_gold", "Súp Lơ (Vàng)", "Nông sản phẩm cấp Vàng quý hiếm. Bán được giá cao gấp đôi bình thường.",
+                        ItemCategory.Produce, "produce_cauliflower_gold", sellPrice: 52, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_strawberry_gold", "Dâu Tây (Vàng)", "Nông sản phẩm cấp Vàng quý hiếm. Bán được giá cao gấp đôi bình thường.",
+                        ItemCategory.Produce, "produce_strawberry_gold", sellPrice: 70, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_pumpkin_gold", "Bí Ngô (Vàng)", "Nông sản phẩm cấp Vàng quý hiếm. Bán được giá cao gấp đôi bình thường.",
+                        ItemCategory.Produce, "produce_pumpkin_gold", sellPrice: 100, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+
+                    // Nông sản VIP - Bạch Kim (Giá x3.0)
+                    CreateEntry("produce_carrot_platinum", "Cà Rốt (Bạch Kim)", "Nông sản cực phẩm cấp Bạch Kim. Nông sản thượng hạng, giá bán siêu cao gấp ba lần.",
+                        ItemCategory.Produce, "produce_carrot_platinum", sellPrice: 54, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_cauliflower_platinum", "Súp Lơ (Bạch Kim)", "Nông sản cực phẩm cấp Bạch Kim. Nông sản thượng hạng, giá bán siêu cao gấp ba lần.",
+                        ItemCategory.Produce, "produce_cauliflower_platinum", sellPrice: 78, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_strawberry_platinum", "Dâu Tây (Bạch Kim)", "Nông sản cực phẩm cấp Bạch Kim. Nông sản thượng hạng, giá bán siêu cao gấp ba lần.",
+                        ItemCategory.Produce, "produce_strawberry_platinum", sellPrice: 105, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_pumpkin_platinum", "Bí Ngô (Bạch Kim)", "Nông sản cực phẩm cấp Bạch Kim. Nông sản thượng hạng, giá bán siêu cao gấp ba lần.",
+                        ItemCategory.Produce, "produce_pumpkin_platinum", sellPrice: 150, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
 
                     // Hái lượm
                     CreateEntry("mushroom", "Nấm Rừng",

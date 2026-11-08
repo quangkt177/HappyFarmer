@@ -161,6 +161,67 @@ namespace HappyFarmer.Inventory
                 }
                 itemLookup[item.id] = item;
             }
+
+            EnsureVipProduceItems();
+        }
+
+        /// <summary>
+        /// Tự động sinh dữ liệu vật phẩm nông sản VIP (Bạc, Vàng, Bạch Kim) nếu chưa có trong database
+        /// </summary>
+        private void EnsureVipProduceItems()
+        {
+            var vipTiers = new[]
+            {
+                new { Suffix = "silver", Name = "Bạc", Multiplier = 1.5f },
+                new { Suffix = "gold", Name = "Vàng", Multiplier = 2.0f },
+                new { Suffix = "platinum", Name = "Bạch Kim", Multiplier = 3.0f }
+            };
+
+            var baseProduceList = new List<InventoryItemData>();
+            foreach (var item in itemLookup.Values)
+            {
+                if (item != null && item.category == ItemCategory.Produce &&
+                    !item.id.EndsWith("_silver") && !item.id.EndsWith("_gold") && !item.id.EndsWith("_platinum"))
+                {
+                    baseProduceList.Add(item);
+                }
+            }
+
+            foreach (var baseItem in baseProduceList)
+            {
+                foreach (var tier in vipTiers)
+                {
+                    string vipId = $"{baseItem.id}_{tier.Suffix}";
+                    if (!itemLookup.ContainsKey(vipId))
+                    {
+                        string spriteName = $"{baseItem.spriteName}_{tier.Suffix}";
+                        Sprite sp = GetSprite(spriteName);
+
+                        var vipItem = new InventoryItemData
+                        {
+                            id = vipId,
+                            displayName = $"{baseItem.displayName} ({tier.Name})",
+                            description = $"Nông sản phẩm cấp {tier.Name} hảo hạng. Chất lượng vượt trội, bán được giá cao ({tier.Multiplier}x).",
+                            category = ItemCategory.Produce,
+                            spriteName = spriteName,
+                            icon = sp,
+                            canBeSold = true,
+                            sellPrice = Mathf.RoundToInt(baseItem.sellPrice * tier.Multiplier),
+                            canBeBought = false,
+                            buyPrice = 0,
+                            maxStack = baseItem.maxStack
+                        };
+
+                        itemLookup[vipId] = vipItem;
+
+                        if (economyDatabase != null && economyDatabase.items != null &&
+                            !economyDatabase.items.Exists(i => i != null && i.id == vipId))
+                        {
+                            economyDatabase.items.Add(vipItem);
+                        }
+                    }
+                }
+            }
         }
 
         private void InitializeSlots()
@@ -202,8 +263,20 @@ namespace HappyFarmer.Inventory
 
         public InventorySlot GetSlot(int index) => (index >= 0 && index < slots.Count) ? slots[index] : null;
 
-        public InventoryItemData GetItemData(string id) =>
-            (!string.IsNullOrEmpty(id) && itemLookup.TryGetValue(id, out var data)) ? data : null;
+        public InventoryItemData GetItemData(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return null;
+            if (itemLookup.TryGetValue(id, out var data)) return data;
+
+            // Nếu là vật phẩm VIP chưa có trong itemLookup, tự động sinh và nạp
+            if (id.EndsWith("_silver") || id.EndsWith("_gold") || id.EndsWith("_platinum"))
+            {
+                EnsureVipProduceItems();
+                if (itemLookup.TryGetValue(id, out data)) return data;
+            }
+
+            return null;
+        }
 
         public Sprite GetSprite(string name) =>
             (!string.IsNullOrEmpty(name) && spriteLookup.TryGetValue(name, out var sp)) ? sp : null;

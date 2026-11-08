@@ -50625,6 +50625,14 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 184787778}
     m_Modifications:
+    - target: {fileID: 2260970157151803733, guid: a25575f925edb454ca1a8c0ece823e75, type: 3}
+      propertyPath: cropPlantPrefab
+      value: 
+      objectReference: {fileID: 4612637745904673268, guid: a9be9df0fee4a8147b8f2fccfd424ac6, type: 3}
+    - target: {fileID: 2260970157151803733, guid: a25575f925edb454ca1a8c0ece823e75, type: 3}
+      propertyPath: preventDuplicatePlanting
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3990842618058439312, guid: a25575f925edb454ca1a8c0ece823e75, type: 3}
       propertyPath: m_RootOrder
       value: 6
