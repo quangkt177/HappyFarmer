@@ -73,9 +73,36 @@ namespace HappyFarmer.UI
 
         private void Awake()
         {
+            ConfigureCrispCanvas();
             GenerateThemeSprites();
             EnsureUIHierarchy();
             BindEvents();
+        }
+
+        private void ConfigureCrispCanvas()
+        {
+            var canvas = GetComponent<Canvas>();
+            if (canvas != null)
+            {
+                canvas.pixelPerfect = true;
+            }
+
+            var scaler = GetComponent<UnityEngine.UI.CanvasScaler>();
+            if (scaler != null)
+            {
+                scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scaler.referenceResolution = new Vector2(1280f, 720f);
+                scaler.screenMatchMode = UnityEngine.UI.CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+                scaler.matchWidthOrHeight = 0.5f;
+            }
+
+            foreach (var txt in GetComponentsInChildren<UnityEngine.UI.Text>(true))
+            {
+                if (txt != null)
+                {
+                    txt.alignByGeometry = false;
+                }
+            }
         }
 
         private void Start()
@@ -542,7 +569,7 @@ namespace HappyFarmer.UI
             var ribbonObj = CreateBox("ActiveItemRibbon", hotbarRoot.transform, new Color(0.42f, 0.26f, 0.15f, 0.94f), false, out var ribbonRect);
             SetAnchor(ribbonRect, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), Vector2.zero, new Vector2(640f, 34f));
 
-            activeItemLabel = CreateText("ActiveItemLabel", ribbonObj.transform, font, 15, FontStyle.Bold,
+            activeItemLabel = CreateText("ActiveItemLabel", ribbonObj.transform, font, 16, FontStyle.Bold,
                 new Color(0.99f, 0.94f, 0.80f, 1f), TextAnchor.MiddleCenter);
             StretchFull(activeItemLabel.rectTransform, 12f, 4f);
 
@@ -582,7 +609,7 @@ namespace HappyFarmer.UI
             bagButtonIcon.sprite = FindEditorSprite("crate_open") ?? FindEditorSprite("crate");
 #endif
 
-            var bagLabel = CreateText("BagLabel", bagBtnObj.transform, font, 13, FontStyle.Bold,
+            var bagLabel = CreateText("BagLabel", bagBtnObj.transform, font, 14, FontStyle.Bold,
                 new Color(1f, 0.95f, 0.82f, 1f), TextAnchor.LowerCenter, $"TÚI ĐỒ [{toggleKey}]");
             StretchFull(bagLabel.rectTransform, 4f, 6f);
         }
@@ -727,12 +754,12 @@ namespace HappyFarmer.UI
             iconImg.preserveAspect = true;
             iconImg.enabled = false;
 
-            var keyText = CreateText("KeybindText", slotObj.transform, font, 12, FontStyle.Bold,
+            var keyText = CreateText("KeybindText", slotObj.transform, font, 14, FontStyle.Bold,
                 new Color(0.42f, 0.27f, 0.15f, 0.9f), TextAnchor.UpperLeft, isHotbar ? (index + 1).ToString() : string.Empty);
             StretchFull(keyText.rectTransform, 6f, 4f);
             keyText.gameObject.SetActive(isHotbar);
 
-            var countTxt = CreateText("CountText", slotObj.transform, font, 14, FontStyle.Bold,
+            var countTxt = CreateText("CountText", slotObj.transform, font, 16, FontStyle.Bold,
                 new Color(0.22f, 0.12f, 0.05f, 1f), TextAnchor.LowerRight);
             StretchFull(countTxt.rectTransform, 6f, 4f);
             var outline = countTxt.gameObject.AddComponent<UnityEngine.UI.Outline>();
@@ -835,7 +862,7 @@ namespace HappyFarmer.UI
             var btn = btnObj.AddComponent<UnityEngine.UI.Button>();
             btn.targetGraphic = img;
 
-            labelText = CreateText("Label", btnObj.transform, font, 13, FontStyle.Bold, new Color(1f, 0.97f, 0.88f, 1f), TextAnchor.MiddleCenter, label);
+            labelText = CreateText("Label", btnObj.transform, font, 15, FontStyle.Bold, new Color(1f, 0.97f, 0.88f, 1f), TextAnchor.MiddleCenter, label);
             StretchFull(labelText.rectTransform, 4f, 2f);
             return btn;
         }

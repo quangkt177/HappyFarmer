@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using HappyFarmer.Farming;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.Tilemaps;
 
 namespace HappyFarmer.Inventory
 {
@@ -25,7 +25,6 @@ namespace HappyFarmer.Inventory
         [SerializeField] private KeyCode interactKey = KeyCode.E;
         [SerializeField] private KeyCode dropKey = KeyCode.Q;
         [SerializeField] private float interactRadius = 1.3f;
-        [SerializeField] private string blockedTilePrefix = "path_";
 
         [Header("Runtime State")]
         [SerializeField] private int currentBalance = -1;
@@ -35,9 +34,6 @@ namespace HappyFarmer.Inventory
         private readonly Dictionary<string, InventoryItemData> itemLookup = new Dictionary<string, InventoryItemData>();
         private readonly Dictionary<string, Sprite> spriteLookup = new Dictionary<string, Sprite>();
         private readonly Dictionary<string, ForagePropConfig> forageLookup = new Dictionary<string, ForagePropConfig>();
-        private readonly Dictionary<Vector2Int, CropPlot> plantedCrops = new Dictionary<Vector2Int, CropPlot>();
-
-        private Tilemap pathsTilemap;
 
         public event Action OnInventoryChanged;
         public event Action<int> OnSelectedHotbarChanged;
@@ -108,8 +104,6 @@ namespace HappyFarmer.Inventory
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             PlayerTransform = null;
-            pathsTilemap = null;
-            plantedCrops.Clear();
 
             ResolveSceneReferences();
             if (scene.name == "FarmMap")
@@ -154,12 +148,6 @@ namespace HappyFarmer.Inventory
             {
                 var player = GameObject.FindWithTag("Player") ?? GameObject.Find("Player");
                 if (player != null) PlayerTransform = player.transform;
-            }
-
-            if (pathsTilemap == null)
-            {
-                var pathsObj = GameObject.Find("Grid/Paths") ?? GameObject.Find("Paths");
-                if (pathsObj != null) pathsTilemap = pathsObj.GetComponent<Tilemap>();
             }
         }
 
@@ -565,7 +553,8 @@ namespace HappyFarmer.Inventory
             switch (data.category)
             {
                 case ItemCategory.Seed:
-                    if (!TryPlantSeed(data)) return false;
+                    if (PlayerTransform == null) ResolveSceneReferences();
+                    if (!FarmingManager.EnsureInstance().TryPlantSeed(data, PlayerTransform, this)) return false;
                     RemoveItemAt(slotIndex, 1);
                     Notify($"Đã gieo {data.displayName}! Cây đang lớn...");
                     return true;
@@ -633,7 +622,7 @@ namespace HappyFarmer.Inventory
         {
             if (Input.GetKeyDown(interactKey))
             {
-                if (!TryHarvestNearbyCrop() && !TryForageNearbySceneProp())
+                if (!FarmingManager.EnsureInstance().TryHarvestNearbyCrop(PlayerTransform, interactRadius, this) && !TryForageNearbySceneProp())
                 {
                     UseSlotItem(selectedHotbarIndex);
                 }
@@ -642,80 +631,6 @@ namespace HappyFarmer.Inventory
             {
                 DropSlotItem(selectedHotbarIndex, 1);
             }
-        }
-
-        private bool TryPlantSeed(InventoryItemData seedData)
-        {
-            ResolveSceneReferences();
-            if (PlayerTransform == null) return false;
-
-            var cell = new Vector2Int(
-                Mathf.FloorToInt(PlayerTransform.position.x),
-                Mathf.FloorToInt(PlayerTransform.position.y));
-
-            if (pathsTilemap != null)
-            {
-                var tile = pathsTilemap.GetTile(new Vector3Int(cell.x, cell.y, 0));
-                if (tile != null && !string.IsNullOrEmpty(blockedTilePrefix) && tile.name.StartsWith(blockedTilePrefix))
-                {
-                    Notify("Không thể gieo hạt trên đường đi! Hãy đứng trên ô đất ruộng.");
-                    return false;
-                }
-            }
-
-            if (plantedCrops.TryGetValue(cell, out var existing) && existing != null)
-            {
-                if (existing.IsMature) existing.TryHarvest(this);
-                else Notify("Ô đất này đã có cây đang phát triển!");
-                return false;
-            }
-
-            string key = string.IsNullOrEmpty(seedData.cropKey) ? "carrot" : seedData.cropKey;
-            var stages = ResolveCropStageSprites(key);
-            var wetSoil = GetSprite("soil_wet") ?? GetSprite("soil_dry");
-
-            var plotObj = new GameObject($"Crop_{key}_{cell.x}_{cell.y}");
-            plotObj.transform.position = new Vector3(cell.x + 0.5f, cell.y + 0.5f, 0f);
-
-            var plot = plotObj.AddComponent<CropPlot>();
-            plot.Initialize(seedData, wetSoil, stages);
-            plantedCrops[cell] = plot;
-            return true;
-        }
-
-        private Sprite[] ResolveCropStageSprites(string cropKey)
-        {
-            var list = new List<Sprite>();
-            for (int i = 0; i < 10; i++)
-            {
-                var sp = GetSprite($"stage{i}_{cropKey}");
-                if (sp == null) break;
-                list.Add(sp);
-            }
-            return list.ToArray();
-        }
-
-        private bool TryHarvestNearbyCrop()
-        {
-            if (PlayerTransform == null) return false;
-
-            CropPlot closest = null;
-            float bestDist = interactRadius;
-
-            foreach (var kvp in plantedCrops)
-            {
-                var plot = kvp.Value;
-                if (plot == null || !plot.IsMature) continue;
-
-                float d = Vector2.Distance(PlayerTransform.position, plot.transform.position);
-                if (d <= bestDist)
-                {
-                    bestDist = d;
-                    closest = plot;
-                }
-            }
-
-            return closest != null && closest.TryHarvest(this);
         }
 
         private bool TryForageNearbySceneProp()
