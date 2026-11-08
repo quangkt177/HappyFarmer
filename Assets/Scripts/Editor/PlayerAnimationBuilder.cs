@@ -13,9 +13,18 @@ namespace HappyFarmer.EditorTools
     {
         private const string IdleSheetPath = "Assets/Sprites/LittleDreamyland/Sprites/Characters/Bunny/IDLE/Bunny_Idle.png";
         private const string RunSheetPath = "Assets/Sprites/LittleDreamyland/Sprites/Characters/Bunny/RUN/Bunny_Run.png";
+        private const string HoeSheetPath = "Assets/Sprites/LittleDreamyland/Sprites/Characters/Bunny/HOE/Bunny_Hoe.png";
+        private const string WaterSheetPath = "Assets/Sprites/LittleDreamyland/Sprites/Characters/Bunny/WATERING CAN/Bunny_WateringCan.png";
+        private const string ScytheSheetPath = "Assets/Sprites/LittleDreamyland/Sprites/Characters/Bunny/SCYTHE/Bunny_Scythe.png";
+
         private const string AnimFolder = "Assets/Animations/Player";
         private const string ControllerPath = "Assets/Animations/Player/Bunny.controller";
-        private const string ScenePath = "Assets/Scenes/FarmMap.unity";
+
+        private static readonly string[] TargetScenePaths = new[]
+        {
+            "Assets/Scenes/FarmMap.unity",
+            "Assets/Scenes/PastureScene.unity"
+        };
 
         static PlayerAnimationBuilder()
         {
@@ -25,9 +34,9 @@ namespace HappyFarmer.EditorTools
         private static void AutoBuildIfNeeded()
         {
             var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
-            if (controller == null || !controller.parameters.Any(p => p.name == "MoveX"))
+            if (controller == null || !controller.parameters.Any(p => p.name == "Hoe"))
             {
-                Debug.Log("[HappyFarmer] Auto-building clean Blend Tree Animator...");
+                Debug.Log("[HappyFarmer] Auto-building Player Animations (Idle, Run, Hoe, Water, Scythe)...");
                 GenerateAnimationsAndController();
             }
         }
@@ -38,40 +47,59 @@ namespace HappyFarmer.EditorTools
             EnsureFolder("Assets/Animations");
             EnsureFolder(AnimFolder);
 
-            // 1. Load sub-sprites
+            // 1. Load sprite dictionaries
             var idleSprites = LoadSprites(IdleSheetPath);
             var runSprites = LoadSprites(RunSheetPath);
+            var hoeSprites = LoadSprites(HoeSheetPath);
+            var waterSprites = LoadSprites(WaterSheetPath);
+            var scytheSprites = LoadSprites(ScytheSheetPath);
 
-            if (idleSprites.Count == 0 || runSprites.Count == 0)
-            {
-                Debug.LogError("[HappyFarmer] Could not find Bunny idle or run sprites! Check paths and sprite slicing.");
-                return;
-            }
+            // 2. Create Animation Clips (Row 0: Up, Row 1: Right, Row 2: Left, Row 3: Down)
+            // Idle (5 frames, 6 FPS, Loop)
+            var clipIdleUp = CreateAnimationClip("Bunny_Idle_Up", GetSprites(idleSprites, "bunny_idle_0", 5), 6f, true);
+            var clipIdleRight = CreateAnimationClip("Bunny_Idle_Right", GetSprites(idleSprites, "bunny_idle_1", 5), 6f, true);
+            var clipIdleLeft = CreateAnimationClip("Bunny_Idle_Left", GetSprites(idleSprites, "bunny_idle_2", 5), 6f, true);
+            var clipIdleDown = CreateAnimationClip("Bunny_Idle_Down", GetSprites(idleSprites, "bunny_idle_3", 5), 6f, true);
 
-            // Direction mappings based on sheet rows:
-            // Row 0 = Up, Row 1 = Right, Row 2 = Left, Row 3 = Down
-            var clipIdleUp = CreateAnimationClip("Bunny_Idle_Up", GetSprites(idleSprites, "bunny_idle_0", 5), 6f);
-            var clipIdleRight = CreateAnimationClip("Bunny_Idle_Right", GetSprites(idleSprites, "bunny_idle_1", 5), 6f);
-            var clipIdleLeft = CreateAnimationClip("Bunny_Idle_Left", GetSprites(idleSprites, "bunny_idle_2", 5), 6f);
-            var clipIdleDown = CreateAnimationClip("Bunny_Idle_Down", GetSprites(idleSprites, "bunny_idle_3", 5), 6f);
+            // Run (8 frames, 10 FPS, Loop)
+            var clipRunUp = CreateAnimationClip("Bunny_Run_Up", GetSprites(runSprites, "bunny_run_0", 8), 10f, true);
+            var clipRunRight = CreateAnimationClip("Bunny_Run_Right", GetSprites(runSprites, "bunny_run_1", 8), 10f, true);
+            var clipRunLeft = CreateAnimationClip("Bunny_Run_Left", GetSprites(runSprites, "bunny_run_2", 8), 10f, true);
+            var clipRunDown = CreateAnimationClip("Bunny_Run_Down", GetSprites(runSprites, "bunny_run_3", 8), 10f, true);
 
-            var clipRunUp = CreateAnimationClip("Bunny_Run_Up", GetSprites(runSprites, "bunny_run_0", 8), 10f);
-            var clipRunRight = CreateAnimationClip("Bunny_Run_Right", GetSprites(runSprites, "bunny_run_1", 8), 10f);
-            var clipRunLeft = CreateAnimationClip("Bunny_Run_Left", GetSprites(runSprites, "bunny_run_2", 8), 10f);
-            var clipRunDown = CreateAnimationClip("Bunny_Run_Down", GetSprites(runSprites, "bunny_run_3", 8), 10f);
+            // 1. Hoe (9 frames, 12 FPS, No Loop)
+            var clipHoeUp = CreateAnimationClip("Bunny_Hoe_Up", GetSprites(hoeSprites, "bunny_hoe_0", 9), 12f, false);
+            var clipHoeRight = CreateAnimationClip("Bunny_Hoe_Right", GetSprites(hoeSprites, "bunny_hoe_1", 9), 12f, false);
+            var clipHoeLeft = CreateAnimationClip("Bunny_Hoe_Left", GetSprites(hoeSprites, "bunny_hoe_2", 9), 12f, false);
+            var clipHoeDown = CreateAnimationClip("Bunny_Hoe_Down", GetSprites(hoeSprites, "bunny_hoe_3", 9), 12f, false);
 
-            // 2. Create Clean 2D Blend Tree Animator Controller
-            var controller = CreateBlendTreeAnimatorController(
+            // 2. Watering Can (9 frames, 12 FPS, No Loop)
+            var clipWaterUp = CreateAnimationClip("Bunny_Water_Up", GetSprites(waterSprites, "bunny_wateringcan_0", 9), 12f, false);
+            var clipWaterRight = CreateAnimationClip("Bunny_Water_Right", GetSprites(waterSprites, "bunny_wateringcan_1", 9), 12f, false);
+            var clipWaterLeft = CreateAnimationClip("Bunny_Water_Left", GetSprites(waterSprites, "bunny_wateringcan_2", 9), 12f, false);
+            var clipWaterDown = CreateAnimationClip("Bunny_Water_Down", GetSprites(waterSprites, "bunny_wateringcan_3", 9), 12f, false);
+
+            // 3. Scythe (9 frames, 12 FPS, No Loop)
+            var clipScytheUp = CreateAnimationClip("Bunny_Scythe_Up", GetSprites(scytheSprites, "bunny_scythe_0", 9), 12f, false);
+            var clipScytheRight = CreateAnimationClip("Bunny_Scythe_Right", GetSprites(scytheSprites, "bunny_scythe_1", 9), 12f, false);
+            var clipScytheLeft = CreateAnimationClip("Bunny_Scythe_Left", GetSprites(scytheSprites, "bunny_scythe_2", 9), 12f, false);
+            var clipScytheDown = CreateAnimationClip("Bunny_Scythe_Down", GetSprites(scytheSprites, "bunny_scythe_3", 9), 12f, false);
+
+            // 3. Create Clean 2D Blend Tree Animator Controller
+            var controller = BuildAnimatorController(
                 clipIdleDown, clipIdleUp, clipIdleLeft, clipIdleRight,
-                clipRunDown, clipRunUp, clipRunLeft, clipRunRight
+                clipRunDown, clipRunUp, clipRunLeft, clipRunRight,
+                clipHoeDown, clipHoeUp, clipHoeLeft, clipHoeRight,
+                clipWaterDown, clipWaterUp, clipWaterLeft, clipWaterRight,
+                clipScytheDown, clipScytheUp, clipScytheLeft, clipScytheRight
             );
 
-            // 3. Attach to Player in Scene if Scene exists
+            // 4. Attach to Player in all target scenes
             AttachToScenePlayer(controller);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[HappyFarmer] Successfully created clean Blend Tree Animator at " + AnimFolder);
+            Debug.Log("[HappyFarmer] Successfully created Farmer Action Animations and Controller at " + AnimFolder);
         }
 
         private static Dictionary<string, Sprite> LoadSprites(string assetPath)
@@ -106,7 +134,7 @@ namespace HappyFarmer.EditorTools
             return list.ToArray();
         }
 
-        private static AnimationClip CreateAnimationClip(string clipName, Sprite[] frames, float fps)
+        private static AnimationClip CreateAnimationClip(string clipName, Sprite[] frames, float fps, bool loop)
         {
             if (frames == null || frames.Length == 0) return null;
 
@@ -116,7 +144,7 @@ namespace HappyFarmer.EditorTools
             clip.frameRate = fps;
 
             var settings = AnimationUtility.GetAnimationClipSettings(clip);
-            settings.loopTime = true;
+            settings.loopTime = loop;
             AnimationUtility.SetAnimationClipSettings(clip, settings);
 
             EditorCurveBinding binding = new EditorCurveBinding
@@ -126,7 +154,6 @@ namespace HappyFarmer.EditorTools
                 propertyName = "m_Sprite"
             };
 
-            // Keyframes
             ObjectReferenceKeyframe[] keyframes = new ObjectReferenceKeyframe[frames.Length];
             for (int i = 0; i < frames.Length; i++)
             {
@@ -151,9 +178,12 @@ namespace HappyFarmer.EditorTools
             return clip;
         }
 
-        private static AnimatorController CreateBlendTreeAnimatorController(
+        private static AnimatorController BuildAnimatorController(
             AnimationClip idleDown, AnimationClip idleUp, AnimationClip idleLeft, AnimationClip idleRight,
-            AnimationClip runDown, AnimationClip runUp, AnimationClip runLeft, AnimationClip runRight)
+            AnimationClip runDown, AnimationClip runUp, AnimationClip runLeft, AnimationClip runRight,
+            AnimationClip hoeDown, AnimationClip hoeUp, AnimationClip hoeLeft, AnimationClip hoeRight,
+            AnimationClip waterDown, AnimationClip waterUp, AnimationClip waterLeft, AnimationClip waterRight,
+            AnimationClip scytheDown, AnimationClip scytheUp, AnimationClip scytheLeft, AnimationClip scytheRight)
         {
             var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
             if (controller == null)
@@ -161,7 +191,7 @@ namespace HappyFarmer.EditorTools
                 controller = AnimatorController.CreateAnimatorControllerAtPath(ControllerPath);
             }
 
-            // Reset all parameters
+            // Reset parameters cleanly
             for (int i = controller.parameters.Length - 1; i >= 0; i--)
             {
                 controller.RemoveParameter(i);
@@ -172,6 +202,9 @@ namespace HappyFarmer.EditorTools
             controller.AddParameter(new AnimatorControllerParameter { name = "Speed", type = AnimatorControllerParameterType.Float, defaultFloat = 0f });
             controller.AddParameter(new AnimatorControllerParameter { name = "LastMoveX", type = AnimatorControllerParameterType.Float, defaultFloat = 0f });
             controller.AddParameter(new AnimatorControllerParameter { name = "LastMoveY", type = AnimatorControllerParameterType.Float, defaultFloat = -1f });
+            controller.AddParameter(new AnimatorControllerParameter { name = "Hoe", type = AnimatorControllerParameterType.Trigger });
+            controller.AddParameter(new AnimatorControllerParameter { name = "Water", type = AnimatorControllerParameterType.Trigger });
+            controller.AddParameter(new AnimatorControllerParameter { name = "Scythe", type = AnimatorControllerParameterType.Trigger });
 
             var rootStateMachine = controller.layers[0].stateMachine;
 
@@ -182,7 +215,7 @@ namespace HappyFarmer.EditorTools
                 rootStateMachine.RemoveState(childState.state);
             }
 
-            // 1. Idle Blend Tree State
+            // 1. Idle State
             BlendTree idleBlendTree;
             var idleState = controller.CreateBlendTreeInController("Idle", out idleBlendTree);
             idleBlendTree.blendType = BlendTreeType.SimpleDirectional2D;
@@ -193,7 +226,7 @@ namespace HappyFarmer.EditorTools
             if (idleLeft != null) idleBlendTree.AddChild(idleLeft, new Vector2(-1, 0));
             if (idleRight != null) idleBlendTree.AddChild(idleRight, new Vector2(1, 0));
 
-            // 2. Run Blend Tree State
+            // 2. Run State
             BlendTree runBlendTree;
             var runState = controller.CreateBlendTreeInController("Run", out runBlendTree);
             runBlendTree.blendType = BlendTreeType.SimpleDirectional2D;
@@ -204,30 +237,87 @@ namespace HappyFarmer.EditorTools
             if (runLeft != null) runBlendTree.AddChild(runLeft, new Vector2(-1, 0));
             if (runRight != null) runBlendTree.AddChild(runRight, new Vector2(1, 0));
 
-            // Default state: Idle
+            // 3. Hoe State (Action 1)
+            BlendTree hoeBlendTree;
+            var hoeState = controller.CreateBlendTreeInController("Hoe", out hoeBlendTree);
+            hoeBlendTree.blendType = BlendTreeType.SimpleDirectional2D;
+            hoeBlendTree.blendParameter = "LastMoveX";
+            hoeBlendTree.blendParameterY = "LastMoveY";
+            if (hoeDown != null) hoeBlendTree.AddChild(hoeDown, new Vector2(0, -1));
+            if (hoeUp != null) hoeBlendTree.AddChild(hoeUp, new Vector2(0, 1));
+            if (hoeLeft != null) hoeBlendTree.AddChild(hoeLeft, new Vector2(-1, 0));
+            if (hoeRight != null) hoeBlendTree.AddChild(hoeRight, new Vector2(1, 0));
+
+            // 4. Water State (Action 2)
+            BlendTree waterBlendTree;
+            var waterState = controller.CreateBlendTreeInController("Water", out waterBlendTree);
+            waterBlendTree.blendType = BlendTreeType.SimpleDirectional2D;
+            waterBlendTree.blendParameter = "LastMoveX";
+            waterBlendTree.blendParameterY = "LastMoveY";
+            if (waterDown != null) waterBlendTree.AddChild(waterDown, new Vector2(0, -1));
+            if (waterUp != null) waterBlendTree.AddChild(waterUp, new Vector2(0, 1));
+            if (waterLeft != null) waterBlendTree.AddChild(waterLeft, new Vector2(-1, 0));
+            if (waterRight != null) waterBlendTree.AddChild(waterRight, new Vector2(1, 0));
+
+            // 5. Scythe State (Action 3)
+            BlendTree scytheBlendTree;
+            var scytheState = controller.CreateBlendTreeInController("Scythe", out scytheBlendTree);
+            scytheBlendTree.blendType = BlendTreeType.SimpleDirectional2D;
+            scytheBlendTree.blendParameter = "LastMoveX";
+            scytheBlendTree.blendParameterY = "LastMoveY";
+            if (scytheDown != null) scytheBlendTree.AddChild(scytheDown, new Vector2(0, -1));
+            if (scytheUp != null) scytheBlendTree.AddChild(scytheUp, new Vector2(0, 1));
+            if (scytheLeft != null) scytheBlendTree.AddChild(scytheLeft, new Vector2(-1, 0));
+            if (scytheRight != null) scytheBlendTree.AddChild(scytheRight, new Vector2(1, 0));
+
+            // Default State
             rootStateMachine.defaultState = idleState;
 
-            // Transition: Idle -> Run
+            // Movement Transitions: Idle <-> Run
             var idleToRun = idleState.AddTransition(runState);
             idleToRun.hasExitTime = false;
             idleToRun.duration = 0f;
             idleToRun.AddCondition(AnimatorConditionMode.Greater, 0.01f, "Speed");
 
-            // Transition: Run -> Idle
             var runToIdle = runState.AddTransition(idleState);
             runToIdle.hasExitTime = false;
             runToIdle.duration = 0f;
             runToIdle.AddCondition(AnimatorConditionMode.Less, 0.01f, "Speed");
 
+            // Action 1: Hoe Transitions
+            AddActionTransition(idleState, hoeState, "Hoe");
+            AddActionTransition(runState, hoeState, "Hoe");
+            AddReturnTransition(hoeState, idleState);
+
+            // Action 2: Water Transitions
+            AddActionTransition(idleState, waterState, "Water");
+            AddActionTransition(runState, waterState, "Water");
+            AddReturnTransition(waterState, idleState);
+
+            // Action 3: Scythe Transitions
+            AddActionTransition(idleState, scytheState, "Scythe");
+            AddActionTransition(runState, scytheState, "Scythe");
+            AddReturnTransition(scytheState, idleState);
+
             EditorUtility.SetDirty(controller);
             return controller;
         }
 
-        private static readonly string[] TargetScenePaths = new[]
+        private static void AddActionTransition(AnimatorState from, AnimatorState to, string trigger)
         {
-            "Assets/Scenes/FarmMap.unity",
-            "Assets/Scenes/PastureScene.unity"
-        };
+            var t = from.AddTransition(to);
+            t.hasExitTime = false;
+            t.duration = 0f;
+            t.AddCondition(AnimatorConditionMode.If, 0, trigger);
+        }
+
+        private static void AddReturnTransition(AnimatorState from, AnimatorState to)
+        {
+            var t = from.AddTransition(to);
+            t.hasExitTime = true;
+            t.exitTime = 1f;
+            t.duration = 0f;
+        }
 
         private static void AttachToScenePlayer(AnimatorController controller)
         {
