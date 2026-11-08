@@ -1,13 +1,33 @@
 using HappyFarmer.UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 
 namespace HappyFarmer.Inventory
 {
     public static class InventoryBootstrap
     {
+        private static bool isSubscribed;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void EnsureInventoryInScene()
+        private static void InitOnPlayMode()
+        {
+            if (!isSubscribed)
+            {
+                SceneManager.sceneLoaded -= OnSceneLoaded;
+                SceneManager.sceneLoaded += OnSceneLoaded;
+                isSubscribed = true;
+            }
+
+            EnsureInventoryInScene();
+        }
+
+        private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            EnsureInventoryInScene();
+        }
+
+        public static void EnsureInventoryInScene()
         {
             if (Object.FindObjectOfType<InventoryManager>() == null)
             {

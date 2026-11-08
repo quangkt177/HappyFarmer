@@ -44,7 +44,7 @@ namespace HappyFarmer.EditorTools
 
             bool needsEconomyAsset = !File.Exists(EconomyAssetPath);
             var activeScene = SceneManager.GetActiveScene();
-            if (activeScene.path == ScenePath)
+            if (activeScene.path == ScenePath || activeScene.path == PastureScenePath)
             {
                 var existingUi = Object.FindObjectOfType<InventoryUI>();
                 bool needsUiUpgrade = existingUi == null || existingUi.transform.Find("HudCoinBadge") == null;
@@ -729,7 +729,7 @@ namespace HappyFarmer.EditorTools
             follow.target = GameObject.Find("Player")?.transform;
         }
 
-        private static void BuildInventorySystem(Dictionary<string, Sprite> sprites)
+        public static void BuildInventorySystem(Dictionary<string, Sprite> sprites)
         {
             var economyDb = EnsureEconomyDatabaseAsset(sprites);
 

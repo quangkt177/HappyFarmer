@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.Tilemaps;
 
 namespace HappyFarmer.Inventory
@@ -59,23 +60,77 @@ namespace HappyFarmer.Inventory
         {
             if (Instance != null && Instance != this)
             {
+                if (Instance.economyDatabase == null && economyDatabase != null)
+                {
+                    Instance.economyDatabase = economyDatabase;
+                }
+                if (preloadedSprites != null && preloadedSprites.Count > 0)
+                {
+                    Instance.MergePreloadedSprites(preloadedSprites);
+                }
                 Destroy(gameObject);
                 return;
             }
             Instance = this;
+            if (transform.parent == null)
+            {
+                DontDestroyOnLoad(gameObject);
+            }
 
             LoadSprites();
             LoadDatabase();
             InitializeBalanceAndSlots();
         }
 
+        private void OnEnable()
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+        }
+
+        private void OnDisable()
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+
         private void Start()
         {
             ResolveSceneReferences();
-            SpawnConfiguredWorldPickups();
+            if (SceneManager.GetActiveScene().name == "FarmMap")
+            {
+                SpawnConfiguredWorldPickups();
+            }
             OnInventoryChanged?.Invoke();
             OnSelectedHotbarChanged?.Invoke(selectedHotbarIndex);
             OnBalanceChanged?.Invoke(currentBalance);
+        }
+
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            PlayerTransform = null;
+            pathsTilemap = null;
+            plantedCrops.Clear();
+
+            ResolveSceneReferences();
+            if (scene.name == "FarmMap")
+            {
+                SpawnConfiguredWorldPickups();
+            }
+            OnInventoryChanged?.Invoke();
+            OnSelectedHotbarChanged?.Invoke(selectedHotbarIndex);
+            OnBalanceChanged?.Invoke(currentBalance);
+        }
+
+        private void MergePreloadedSprites(List<Sprite> sprites)
+        {
+            if (sprites == null) return;
+            foreach (var s in sprites)
+            {
+                if (s != null && !spriteLookup.ContainsKey(s.name))
+                {
+                    spriteLookup[s.name] = s;
+                }
+            }
         }
 
         private void Update()

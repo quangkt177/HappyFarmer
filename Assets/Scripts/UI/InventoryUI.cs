@@ -462,6 +462,14 @@ namespace HappyFarmer.UI
                 sellOneButton != null &&
                 hudCoinText != null)
             {
+                if (backpackSlotsContainer != null && backpackSlotsContainer.parent is RectTransform leftPanelRect && leftPanelRect.anchorMax.x > 0.01f)
+                {
+                    leftPanelRect.anchorMin = new Vector2(0f, 0f);
+                    leftPanelRect.anchorMax = new Vector2(0f, 1f);
+                    leftPanelRect.pivot = new Vector2(0f, 0.5f);
+                    leftPanelRect.offsetMin = new Vector2(14f, 14f);
+                    leftPanelRect.offsetMax = new Vector2(394f, -68f);
+                }
                 ApplyProceduralSpritesToExistingUI();
                 return;
             }
@@ -474,8 +482,17 @@ namespace HappyFarmer.UI
 
             for (int i = transform.childCount - 1; i >= 0; i--)
             {
-                if (Application.isPlaying) Destroy(transform.GetChild(i).gameObject);
-                else DestroyImmediate(transform.GetChild(i).gameObject);
+                var child = transform.GetChild(i).gameObject;
+                if (Application.isPlaying)
+                {
+                    child.SetActive(false);
+                    child.transform.SetParent(null, false);
+                    Destroy(child);
+                }
+                else
+                {
+                    DestroyImmediate(child);
+                }
             }
             slotUIs.Clear();
 
@@ -590,7 +607,7 @@ namespace HappyFarmer.UI
 
             var titleText = CreateText("TitleText", headerObj.transform, font, 21, FontStyle.Bold,
                 new Color(1f, 0.94f, 0.78f, 1f), TextAnchor.MiddleLeft, "TÚI ĐỒ & QUẦY BÁN HÀNG NÔNG TRẠI");
-            StretchFull(titleText.rectTransform, 18f, 6f);
+            SetStretchOffsets(titleText.rectTransform, 18f, 6f, -240f, -6f);
 
             var modalCoinBox = CreateBox("ModalCoinBox", headerObj.transform, new Color(0.28f, 0.16f, 0.08f, 0.95f), false, out var modalCoinRect);
             SetAnchor(modalCoinRect, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-58f, 0f), new Vector2(170f, 36f));
@@ -611,7 +628,8 @@ namespace HappyFarmer.UI
             leftRect.anchorMin = new Vector2(0f, 0f);
             leftRect.anchorMax = new Vector2(0f, 1f);
             leftRect.pivot = new Vector2(0f, 0.5f);
-            SetStretchOffsets(leftRect, 14f, 14f, 394f, -68f);
+            leftRect.offsetMin = new Vector2(14f, 14f);
+            leftRect.offsetMax = new Vector2(394f, -68f);
 
             var gridTitle = CreateText("GridSubtitle", leftPanel.transform, font, 14, FontStyle.Bold,
                 new Color(0.32f, 0.19f, 0.10f, 1f), TextAnchor.MiddleLeft,
