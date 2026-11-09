@@ -53,6 +53,13 @@ namespace HappyFarmer.Gameplay
             ApplyCurrentStageVisuals();
         }
 
+        public void SetStage(GrowthStage stage)
+        {
+            currentStage = stage;
+            growthTimer = 0f;
+            ApplyCurrentStageVisuals();
+        }
+
         private void Update()
         {
             if (!autoGrow || isTransitioning || currentStage == GrowthStage.Adult) return;

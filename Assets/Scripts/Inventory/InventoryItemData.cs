@@ -89,6 +89,24 @@ namespace HappyFarmer.Inventory
             count = amount;
         }
 
+        public int Add(int amount, int maxStack)
+        {
+            if (amount <= 0) return 0;
+            int space = Mathf.Max(0, maxStack - count);
+            int take = Mathf.Min(amount, space);
+            count += take;
+            return take;
+        }
+
+        public int Remove(int amount)
+        {
+            if (amount <= 0 || IsEmpty) return 0;
+            int take = Mathf.Min(amount, count);
+            count -= take;
+            if (count <= 0) Clear();
+            return take;
+        }
+
         public void Clear()
         {
             itemId = string.Empty;

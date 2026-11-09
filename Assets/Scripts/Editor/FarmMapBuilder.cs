@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using HappyFarmer.Inventory;
+using HappyFarmer.Economy;
 using HappyFarmer.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -44,7 +45,7 @@ namespace HappyFarmer.EditorTools
 
             bool needsEconomyAsset = !File.Exists(EconomyAssetPath);
             var activeScene = SceneManager.GetActiveScene();
-            if (activeScene.path == ScenePath)
+            if (activeScene.path == ScenePath || activeScene.path == PastureScenePath)
             {
                 var existingUi = Object.FindObjectOfType<InventoryUI>();
                 bool needsUiUpgrade = existingUi == null || existingUi.transform.Find("HudCoinBadge") == null;
@@ -724,14 +725,23 @@ namespace HappyFarmer.EditorTools
             cameraObj.transform.position = new Vector3(17f, 11f, -10f);
             cameraObj.tag = "MainCamera";
             cameraObj.AddComponent<AudioListener>();
-
-            var follow = cameraObj.AddComponent<CameraFollow>();
-            follow.target = GameObject.Find("Player")?.transform;
         }
 
-        private static void BuildInventorySystem(Dictionary<string, Sprite> sprites)
+        public static void BuildInventorySystem(Dictionary<string, Sprite> sprites)
         {
             var economyDb = EnsureEconomyDatabaseAsset(sprites);
+
+            var econ = Object.FindObjectOfType<EconomyManager>();
+            if (econ == null)
+            {
+                var econObj = new GameObject("EconomyManager");
+                econ = econObj.AddComponent<EconomyManager>();
+            }
+            if (economyDb != null)
+            {
+                econ.SetEconomyDatabase(economyDb);
+                EditorUtility.SetDirty(econ);
+            }
 
             var manager = Object.FindObjectOfType<InventoryManager>();
             if (manager == null)

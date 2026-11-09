@@ -30,6 +30,14 @@ namespace HappyFarmer.Inventory
         public Vector2 position;
     }
 
+    [Serializable]
+    public class ParcelPriceConfig
+    {
+        [Tooltip("Tên GameObject khu đất trên bản đồ (ví dụ: Parcel East)")]
+        public string parcelName;
+        [Min(0)] public int price = 150;
+    }
+
     [CreateAssetMenu(fileName = "EconomyDatabase", menuName = "Happy Farmer/Economy & Item Database", order = 1)]
     public class EconomyDatabaseSO : ScriptableObject
     {
@@ -54,12 +62,35 @@ namespace HappyFarmer.Inventory
         [Header("Vật phẩm rơi sẵn trên Bản đồ (Initial Pickups)")]
         public List<WorldPickupSpawnConfig> initialWorldPickups = new List<WorldPickupSpawnConfig>();
 
+        [Header("Sạp Gia Súc (Pasture Stall)")]
+        [Min(0)] public int chickBuyPrice = 40;
+        [Min(0)] public int calfBuyPrice = 120;
+        [Min(0)] public int chickenSellPrice = 70;
+        [Min(0)] public int cowSellPrice = 220;
+        [Min(1)] public int maxChickens = 12;
+        [Min(1)] public int maxCows = 8;
+
+        [Header("Giá mở Khu Đất (Parcels)")]
+        public List<ParcelPriceConfig> parcelPrices = new List<ParcelPriceConfig>();
+
         public int TotalSlots => Mathf.Max(1, hotbarSize) + Mathf.Max(1, backpackSize);
+
+        public InventoryItemData GetItem(string id) =>
+            !string.IsNullOrEmpty(id) ? items?.Find(i => i != null && i.id == id) : null;
+
+        public bool HasItem(string id) =>
+            !string.IsNullOrEmpty(id) && items != null && items.Exists(i => i != null && i.id == id);
 
         public string FormatCurrency(int amount)
         {
             string sym = string.IsNullOrEmpty(currencySymbol) ? "Xu" : currencySymbol;
             return $"{amount:N0} {sym}";
+        }
+
+        public int GetParcelPrice(string parcelName, int fallback = 150)
+        {
+            var cfg = parcelPrices?.Find(p => p != null && p.parcelName == parcelName);
+            return cfg != null ? cfg.price : fallback;
         }
 
         public void PopulateDefaultDataIfEmpty(Func<string, Sprite> spriteResolver = null)
@@ -90,7 +121,7 @@ namespace HappyFarmer.Inventory
                         ItemCategory.Seed, "seed_pumpkin", sellPrice: 15, canBuy: true, buyPrice: 30,
                         cropKey: "pumpkin", harvestId: "produce_pumpkin", spriteResolver: spriteResolver),
 
-                    // Nông sản thu hoạch
+                    // Nông sản thu hoạch (Thường)
                     CreateEntry("produce_carrot", "Cà Rốt Tươi",
                         "Củ cà rốt giòn ngọt vừa thu hoạch. Có thể bán lấy Xu hoặc sử dụng ngay.",
                         ItemCategory.Produce, "produce_carrot", sellPrice: 18, canBuy: false, buyPrice: 0,
@@ -110,6 +141,36 @@ namespace HappyFarmer.Inventory
                         "Quả bí ngô tròn đầy đặn, nông sản giá trị cao của nông trại.",
                         ItemCategory.Produce, "produce_pumpkin", sellPrice: 50, canBuy: false, buyPrice: 0,
                         spriteResolver: spriteResolver),
+
+                    // Nông sản VIP - Bạc (Giá x1.5)
+                    CreateEntry("produce_carrot_silver", "Cà Rốt (Bạc)", "Nông sản phẩm cấp Bạc. Chất lượng vượt trội, bán được giá cao hơn bình thường.",
+                        ItemCategory.Produce, "produce_carrot_silver", sellPrice: 27, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_cauliflower_silver", "Súp Lơ (Bạc)", "Nông sản phẩm cấp Bạc. Chất lượng vượt trội, bán được giá cao hơn bình thường.",
+                        ItemCategory.Produce, "produce_cauliflower_silver", sellPrice: 39, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_strawberry_silver", "Dâu Tây (Bạc)", "Nông sản phẩm cấp Bạc. Chất lượng vượt trội, bán được giá cao hơn bình thường.",
+                        ItemCategory.Produce, "produce_strawberry_silver", sellPrice: 52, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_pumpkin_silver", "Bí Ngô (Bạc)", "Nông sản phẩm cấp Bạc. Chất lượng vượt trội, bán được giá cao hơn bình thường.",
+                        ItemCategory.Produce, "produce_pumpkin_silver", sellPrice: 75, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+
+                    // Nông sản VIP - Vàng (Giá x2.0)
+                    CreateEntry("produce_carrot_gold", "Cà Rốt (Vàng)", "Nông sản phẩm cấp Vàng quý hiếm. Bán được giá cao gấp đôi bình thường.",
+                        ItemCategory.Produce, "produce_carrot_gold", sellPrice: 36, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_cauliflower_gold", "Súp Lơ (Vàng)", "Nông sản phẩm cấp Vàng quý hiếm. Bán được giá cao gấp đôi bình thường.",
+                        ItemCategory.Produce, "produce_cauliflower_gold", sellPrice: 52, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_strawberry_gold", "Dâu Tây (Vàng)", "Nông sản phẩm cấp Vàng quý hiếm. Bán được giá cao gấp đôi bình thường.",
+                        ItemCategory.Produce, "produce_strawberry_gold", sellPrice: 70, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_pumpkin_gold", "Bí Ngô (Vàng)", "Nông sản phẩm cấp Vàng quý hiếm. Bán được giá cao gấp đôi bình thường.",
+                        ItemCategory.Produce, "produce_pumpkin_gold", sellPrice: 100, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+
+                    // Nông sản VIP - Bạch Kim (Giá x3.0)
+                    CreateEntry("produce_carrot_platinum", "Cà Rốt (Bạch Kim)", "Nông sản cực phẩm cấp Bạch Kim. Nông sản thượng hạng, giá bán siêu cao gấp ba lần.",
+                        ItemCategory.Produce, "produce_carrot_platinum", sellPrice: 54, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_cauliflower_platinum", "Súp Lơ (Bạch Kim)", "Nông sản cực phẩm cấp Bạch Kim. Nông sản thượng hạng, giá bán siêu cao gấp ba lần.",
+                        ItemCategory.Produce, "produce_cauliflower_platinum", sellPrice: 78, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_strawberry_platinum", "Dâu Tây (Bạch Kim)", "Nông sản cực phẩm cấp Bạch Kim. Nông sản thượng hạng, giá bán siêu cao gấp ba lần.",
+                        ItemCategory.Produce, "produce_strawberry_platinum", sellPrice: 105, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
+                    CreateEntry("produce_pumpkin_platinum", "Bí Ngô (Bạch Kim)", "Nông sản cực phẩm cấp Bạch Kim. Nông sản thượng hạng, giá bán siêu cao gấp ba lần.",
+                        ItemCategory.Produce, "produce_pumpkin_platinum", sellPrice: 150, canBuy: false, buyPrice: 0, spriteResolver: spriteResolver),
 
                     // Hái lượm
                     CreateEntry("mushroom", "Nấm Rừng",
@@ -185,6 +246,15 @@ namespace HappyFarmer.Inventory
                     new WorldPickupSpawnConfig { itemId = "produce_strawberry", count = 1, position = new Vector2(23.5f, 10.2f) }
                 };
             }
+
+            if (parcelPrices == null || parcelPrices.Count == 0)
+            {
+                parcelPrices = new List<ParcelPriceConfig>
+                {
+                    new ParcelPriceConfig { parcelName = "Parcel East", price = 150 },
+                    new ParcelPriceConfig { parcelName = "Parcel South", price = 300 }
+                };
+            }
         }
 
         private static InventoryItemData CreateEntry(
@@ -208,16 +278,12 @@ namespace HappyFarmer.Inventory
                 category = category,
                 spriteName = spriteName,
                 icon = spriteResolver != null ? spriteResolver(spriteName) : null,
-                maxStack = 99,
                 canBeSold = sellPrice > 0,
                 sellPrice = sellPrice,
                 canBeBought = canBuy,
                 buyPrice = buyPrice,
                 cropKey = cropKey,
-                harvestItemId = harvestId,
-                secondsPerStage = 3.5f,
-                minHarvestYield = 2,
-                maxHarvestYield = 3
+                harvestItemId = harvestId
             };
         }
     }

@@ -248,6 +248,9 @@ namespace HappyFarmer.EditorTools
             // 8. Main Camera
             BuildCamera();
 
+            // 9. Inventory System & UI
+            FarmMapBuilder.BuildInventorySystem(sprites);
+
             EditorSceneManager.SaveScene(scene, ScenePath);
         }
 
@@ -653,9 +656,6 @@ namespace HappyFarmer.EditorTools
             cameraObj.transform.position = new Vector3(17f, 11f, -10f);
             cameraObj.tag = "MainCamera";
             cameraObj.AddComponent<AudioListener>();
-
-            var follow = cameraObj.AddComponent<CameraFollow>();
-            follow.target = GameObject.Find("Player")?.transform;
         }
 
         private static GameObject Prop(Transform parent, Dictionary<string, Sprite> sprites, string spriteName, float x, float y, bool solid)
