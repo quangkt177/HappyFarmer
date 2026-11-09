@@ -98,26 +98,20 @@ namespace HappyFarmer.Gameplay
 
         private void HandleActionInput()
         {
-            // Direct hotkeys: 1/J = Hoe, 2/K = Water, 3/L = Scythe
-            if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1) || Input.GetKeyDown(KeyCode.J))
+            if (Input.GetKeyDown(KeyCode.J))
             {
                 selectedTool = ToolType.Hoe;
                 PerformAction(ToolType.Hoe);
             }
-            else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2) || Input.GetKeyDown(KeyCode.K))
+            else if (Input.GetKeyDown(KeyCode.K))
             {
                 selectedTool = ToolType.WateringCan;
                 PerformAction(ToolType.WateringCan);
             }
-            else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3) || Input.GetKeyDown(KeyCode.L))
+            else if (Input.GetKeyDown(KeyCode.L))
             {
                 selectedTool = ToolType.Scythe;
                 PerformAction(ToolType.Scythe);
-            }
-            // Use currently selected tool with Space or Left Mouse Click
-            else if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
-            {
-                PerformAction(selectedTool);
             }
         }
 
