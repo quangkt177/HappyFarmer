@@ -7,6 +7,28 @@ namespace HappyFarmer.Shop
     public class AnimalKey : MonoBehaviour
     {
         public string key;
+
+        // Lưu giai đoạn lớn khi rời map, để lần sau vào lại không bị reset về trạng thái trong scene
+        private void OnDestroy()
+        {
+            var growth = GetComponent<AnimalGrowth>();
+            if (growth == null || string.IsNullOrEmpty(key)) return;
+
+            FarmSession.AnimalStates[key] = new AnimalState
+            {
+                stage = growth.SavedStage,
+                growthTimer = growth.GrowthTimer,
+                savedAt = Time.time
+            };
+        }
+
+        public void ApplySavedState()
+        {
+            if (!FarmSession.AnimalStates.TryGetValue(key, out var state)) return;
+
+            // Lúc người chơi ở map khác, con vật vẫn tiếp tục lớn
+            GetComponent<AnimalGrowth>().RestoreState(state.stage, state.growthTimer, Time.time - state.savedAt);
+        }
     }
 
     public static class AnimalMarket
@@ -91,6 +113,7 @@ namespace HappyFarmer.Shop
                 {
                     var template = Object.Instantiate(animal.gameObject, t.parent);
                     template.name = $"{animal.AnimalSpecies} Template";
+                    template.GetComponent<AnimalKey>().key = null; // bản mẫu không được ghi đè trạng thái con gốc
                     template.SetActive(false);
                     templates[animal.AnimalSpecies] = template;
                 }
@@ -98,9 +121,14 @@ namespace HappyFarmer.Shop
 
             foreach (var animal in animals)
             {
-                if (FarmSession.RemovedAnimalKeys.Contains(animal.GetComponent<AnimalKey>().key))
+                var tag = animal.GetComponent<AnimalKey>();
+                if (FarmSession.RemovedAnimalKeys.Contains(tag.key))
                 {
                     Object.Destroy(animal.gameObject);
+                }
+                else
+                {
+                    tag.ApplySavedState();
                 }
             }
 
@@ -118,9 +146,11 @@ namespace HappyFarmer.Shop
             var clone = Object.Instantiate(template, record.position, Quaternion.identity, template.transform.parent);
             clone.transform.localScale = Vector3.one;
             clone.name = record.species == AnimalGrowth.Species.Chicken ? "Bought Chick" : "Bought Calf";
-            clone.GetComponent<AnimalKey>().key = record.key;
+            var tag = clone.GetComponent<AnimalKey>();
+            tag.key = record.key;
             clone.SetActive(true);
             clone.GetComponent<AnimalGrowth>().SetStage(AnimalGrowth.GrowthStage.Baby);
+            tag.ApplySavedState();
             return true;
         }
 

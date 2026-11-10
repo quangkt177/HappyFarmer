@@ -26,10 +26,14 @@ namespace HappyFarmer.Gameplay
         private AnimalController controller;
         private SpriteRenderer spriteRenderer;
         private bool isTransitioning;
+        private GrowthStage pendingStage;
 
         public Species AnimalSpecies => species;
         public GrowthStage CurrentStage => currentStage;
         public float GrowthPercent => Mathf.Clamp01(growthTimer / secondsPerStage);
+        public float GrowthTimer => growthTimer;
+        // Đang chạy hiệu ứng lớn lên thì coi như đã sang giai đoạn mới
+        public GrowthStage SavedStage => isTransitioning ? pendingStage : currentStage;
 
         private void Awake()
         {
@@ -58,6 +62,28 @@ namespace HappyFarmer.Gameplay
             currentStage = stage;
             growthTimer = 0f;
             ApplyCurrentStageVisuals();
+        }
+
+        // Khôi phục trạng thái khi quay lại map, cộng thêm thời gian đã trôi qua lúc ở map khác
+        public void RestoreState(GrowthStage stage, float timer, float elapsed)
+        {
+            currentStage = stage;
+            growthTimer = timer + (autoGrow ? elapsed : 0f);
+
+            while (currentStage != GrowthStage.Adult && growthTimer >= secondsPerStage)
+            {
+                growthTimer -= secondsPerStage;
+                currentStage = NextStage(currentStage);
+            }
+            if (currentStage == GrowthStage.Adult) growthTimer = 0f;
+
+            ApplyCurrentStageVisuals();
+        }
+
+        private GrowthStage NextStage(GrowthStage stage)
+        {
+            if (species == Species.Chicken && stage == GrowthStage.Egg) return GrowthStage.Baby;
+            return GrowthStage.Adult;
         }
 
         private void Update()
@@ -132,6 +158,7 @@ namespace HappyFarmer.Gameplay
         private IEnumerator EvolveRoutine(GrowthStage nextStage, string message)
         {
             isTransitioning = true;
+            pendingStage = nextStage;
             growthTimer = 0f;
 
             // 1. Squash & Stretch anticipation
