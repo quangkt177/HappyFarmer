@@ -329,6 +329,12 @@ namespace HappyFarmer.EditorTools
                 var player = GameObject.Find("Player");
                 if (player != null)
                 {
+                    var shadow = player.transform.Find("Shadow");
+                    if (shadow != null)
+                    {
+                        Object.DestroyImmediate(shadow.gameObject);
+                    }
+
                     var anim = player.GetComponent<Animator>();
                     if (anim == null)
                     {

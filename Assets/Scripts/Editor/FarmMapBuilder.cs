@@ -694,17 +694,6 @@ namespace HappyFarmer.EditorTools
             col.size = new Vector2(0.6f, 0.35f);
             col.offset = new Vector2(0f, 0.15f);
 
-            var shadow = new GameObject("Shadow");
-            shadow.transform.SetParent(player.transform, false);
-            shadow.transform.localPosition = new Vector3(0f, 0.05f, 0f);
-            var shadowRenderer = shadow.AddComponent<SpriteRenderer>();
-            var shadowPath = "Assets/Sprites/LittleDreamyland/Sprites/Sprite_Shadow.png";
-            var shadowSprite = AssetDatabase.LoadAssetAtPath<Sprite>(shadowPath);
-            if (shadowSprite != null) shadowRenderer.sprite = shadowSprite;
-            shadowRenderer.sortingLayerName = GroundLayer;
-            shadowRenderer.sortingOrder = 10;
-            shadowRenderer.color = new Color(1f, 1f, 1f, 0.45f);
-
             // Animator component
             var anim = player.AddComponent<Animator>();
             var controller = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>("Assets/Animations/Player/Bunny.controller");
