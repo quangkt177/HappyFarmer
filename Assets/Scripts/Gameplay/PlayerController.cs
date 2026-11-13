@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace HappyFarmer.Gameplay
@@ -6,123 +5,168 @@ namespace HappyFarmer.Gameplay
     [RequireComponent(typeof(Rigidbody2D))]
     public class PlayerController : MonoBehaviour
     {
+        public enum ToolType
+        {
+            Hoe = 0,
+            WateringCan = 1,
+            Scythe = 2
+        }
+
         [Header("Movement Settings")]
         [SerializeField] private float moveSpeed = 4f;
 
-        private Rigidbody2D rb;
-        private SpriteRenderer spriteRenderer;
-        private Vector2 movement;
-        
-        // Directions: 0: Up, 1: Right, 2: Down, 3: Left
-        private int currentDirection = 2; // Default facing down
-        private float animTimer;
-        private int animFrame;
+        [Header("Tool Settings")]
+        [SerializeField] private ToolType selectedTool = ToolType.Hoe;
 
-        // Sprites cache: [clipType, direction, frame]
-        private Sprite[][] idleClips;
-        private Sprite[][] runClips;
+        private Rigidbody2D rb;
+        private Animator animator;
+
+        private Vector2 movement;
+        private Vector2 lastDirection = Vector2.down; // Default facing down
+
+        private bool isActing;
+        private float actionTimer;
+        private const float ActionDuration = 0.75f; // 9 frames @ 12 FPS
+
+        // Animator Parameter Hashes
+        private static readonly int MoveXHash = Animator.StringToHash("MoveX");
+        private static readonly int MoveYHash = Animator.StringToHash("MoveY");
+        private static readonly int SpeedHash = Animator.StringToHash("Speed");
+        private static readonly int LastMoveXHash = Animator.StringToHash("LastMoveX");
+        private static readonly int LastMoveYHash = Animator.StringToHash("LastMoveY");
+        private static readonly int HoeHash = Animator.StringToHash("Hoe");
+        private static readonly int WaterHash = Animator.StringToHash("Water");
+        private static readonly int ScytheHash = Animator.StringToHash("Scythe");
 
         private void Awake()
         {
             rb = GetComponent<Rigidbody2D>();
-            spriteRenderer = GetComponent<SpriteRenderer>();
-            LoadBunnySprites();
-        }
-
-        private void LoadBunnySprites()
-        {
-            // Rows in sprite sheet: 0 = Up, 1 = Right, 2 = Left, 3 = Down
-            // We want directions: 0 = Up, 1 = Right, 2 = Down, 3 = Left
-            int[] sheetRows = { 0, 1, 3, 2 };
-
-            var allSprites = Resources.FindObjectsOfTypeAll<Sprite>();
-            var spriteDict = new Dictionary<string, Sprite>();
-            foreach (var s in allSprites)
-            {
-                if (!spriteDict.ContainsKey(s.name))
-                    spriteDict[s.name] = s;
-            }
-
-            idleClips = new Sprite[4][];
-            runClips = new Sprite[4][];
-
-            for (int dir = 0; dir < 4; dir++)
-            {
-                int row = sheetRows[dir];
-
-                // Idle: 5 frames
-                idleClips[dir] = new Sprite[5];
-                for (int f = 0; f < 5; f++)
-                {
-                    spriteDict.TryGetValue($"bunny_idle_{row}_{f}", out idleClips[dir][f]);
-                }
-
-                // Run: 8 frames
-                runClips[dir] = new Sprite[8];
-                for (int f = 0; f < 8; f++)
-                {
-                    spriteDict.TryGetValue($"bunny_run_{row}_{f}", out runClips[dir][f]);
-                }
-            }
+            animator = GetComponent<Animator>();
         }
 
         private void Update()
+        {
+            if (isActing)
+            {
+                actionTimer -= Time.deltaTime;
+                if (actionTimer <= 0f)
+                {
+                    isActing = false;
+                }
+                return;
+            }
+
+            HandleActionInput();
+            if (!isActing)
+            {
+                HandleMovementInput();
+                UpdateAnimation();
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            if (isActing)
+            {
+                rb.velocity = Vector2.zero;
+                return;
+            }
+
+            // Normalize movement so diagonal speed is not faster
+            Vector2 targetVelocity = movement.normalized * moveSpeed;
+            rb.velocity = targetVelocity;
+        }
+
+        private void HandleMovementInput()
         {
             movement.x = Input.GetAxisRaw("Horizontal");
             movement.y = Input.GetAxisRaw("Vertical");
 
             if (movement != Vector2.zero)
             {
-                movement.Normalize();
+                // Snap lastDirection to 4 cardinal directions for cleaner facing
                 if (Mathf.Abs(movement.x) > Mathf.Abs(movement.y))
                 {
-                    currentDirection = movement.x > 0 ? 1 : 3; // Right or Left
+                    lastDirection = new Vector2(Mathf.Sign(movement.x), 0f);
                 }
                 else
                 {
-                    currentDirection = movement.y > 0 ? 0 : 2; // Up or Down
+                    lastDirection = new Vector2(0f, Mathf.Sign(movement.y));
                 }
             }
-
-            Animate();
         }
 
-        private void FixedUpdate()
+        private void HandleActionInput()
         {
-            rb.velocity = movement * moveSpeed;
+            if (Input.GetKeyDown(KeyCode.J))
+            {
+                selectedTool = ToolType.Hoe;
+                PerformAction(ToolType.Hoe);
+            }
+            else if (Input.GetKeyDown(KeyCode.K))
+            {
+                selectedTool = ToolType.WateringCan;
+                PerformAction(ToolType.WateringCan);
+            }
+            else if (Input.GetKeyDown(KeyCode.L))
+            {
+                selectedTool = ToolType.Scythe;
+                PerformAction(ToolType.Scythe);
+            }
         }
 
-        private void Animate()
+        public void PerformAction(ToolType tool)
         {
-            if (idleClips == null || runClips == null || spriteRenderer == null) return;
+            if (isActing) return;
 
-            bool isMoving = movement.sqrMagnitude > 0.01f;
-            float frameDuration = isMoving ? 0.08f : 0.16f;
-            int maxFrames = isMoving ? 8 : 5;
+            isActing = true;
+            actionTimer = ActionDuration;
+            movement = Vector2.zero;
+            rb.velocity = Vector2.zero;
 
-            animTimer += Time.deltaTime;
-            if (animTimer >= frameDuration)
+            if (animator != null && animator.runtimeAnimatorController != null)
             {
-                animTimer = 0f;
-                animFrame = (animFrame + 1) % maxFrames;
-            }
+                animator.SetFloat(SpeedHash, 0f);
+                animator.SetFloat(LastMoveXHash, lastDirection.x);
+                animator.SetFloat(LastMoveYHash, lastDirection.y);
 
-            Sprite currentSprite = null;
-            if (isMoving)
-            {
-                if (runClips[currentDirection] != null && animFrame < runClips[currentDirection].Length)
-                    currentSprite = runClips[currentDirection][animFrame];
-            }
-            else
-            {
-                if (idleClips[currentDirection] != null && animFrame < idleClips[currentDirection].Length)
-                    currentSprite = idleClips[currentDirection][animFrame];
-            }
-
-            if (currentSprite != null)
-            {
-                spriteRenderer.sprite = currentSprite;
+                switch (tool)
+                {
+                    case ToolType.Hoe:
+                        animator.SetTrigger(HoeHash);
+                        break;
+                    case ToolType.WateringCan:
+                        animator.SetTrigger(WaterHash);
+                        break;
+                    case ToolType.Scythe:
+                        animator.SetTrigger(ScytheHash);
+                        break;
+                }
             }
         }
+
+        private void UpdateAnimation()
+        {
+            if (animator != null && animator.runtimeAnimatorController != null)
+            {
+                bool isMoving = movement.sqrMagnitude > 0.01f;
+
+                animator.SetFloat(SpeedHash, isMoving ? movement.magnitude : 0f);
+
+                if (isMoving)
+                {
+                    animator.SetFloat(MoveXHash, lastDirection.x);
+                    animator.SetFloat(MoveYHash, lastDirection.y);
+                }
+
+                animator.SetFloat(LastMoveXHash, lastDirection.x);
+                animator.SetFloat(LastMoveYHash, lastDirection.y);
+            }
+        }
+
+        public Vector2 LastDirection => lastDirection;
+        public bool IsMoving => movement.sqrMagnitude > 0.01f;
+        public bool IsActing => isActing;
+        public ToolType SelectedTool => selectedTool;
     }
 }

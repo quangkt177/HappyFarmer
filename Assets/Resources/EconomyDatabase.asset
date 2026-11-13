@@ -1,0 +1,317 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a02cb5b583e47fd4e8d98c8ddbe27fad, type: 3}
+  m_Name: EconomyDatabase
+  m_EditorClassIdentifier: 
+  hotbarSize: 8
+  backpackSize: 16
+  currencyName: "Xu V\xE0ng"
+  currencySymbol: Xu
+  startingBalance: 100
+  items:
+  - id: seed_carrot
+    displayName: "H\u1EA1t C\xE0 R\u1ED1t"
+    description: "H\u1EA1t gi\u1ED1ng c\xE0 r\u1ED1t ng\u1ECDt gi\xF2n. \u0110\u1EE9ng
+      tr\xEAn \xF4 \u0111\u1EA5t ru\u1ED9ng v\xE0 b\u1EA5m [E] ho\u1EB7c n\xFAt [Gieo
+      H\u1EA1t] \u0111\u1EC3 tr\u1ED3ng."
+    category: 0
+    spriteName: seed_carrot
+    icon: {fileID: 4299946351018795997, guid: 7107dd58b8c923f4eaf45bc0036ef6ed, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 5
+    canBeBought: 1
+    buyPrice: 10
+    cropKey: carrot
+    harvestItemId: produce_carrot
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: seed_cauliflower
+    displayName: "H\u1EA1t S\xFAp L\u01A1"
+    description: "H\u1EA1t gi\u1ED1ng s\xFAp l\u01A1 tr\u1EAFng t\u01B0\u01A1i m\xE1t,
+      d\u1EC5 tr\u1ED3ng tr\xEAn \u0111\u1EA5t n\xF4ng tr\u1EA1i."
+    category: 0
+    spriteName: seed_cauliflower
+    icon: {fileID: 3226586580319007446, guid: 7107dd58b8c923f4eaf45bc0036ef6ed, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 8
+    canBeBought: 1
+    buyPrice: 15
+    cropKey: cauliflower
+    harvestItemId: produce_cauliflower
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: seed_strawberry
+    displayName: "H\u1EA1t D\xE2u T\xE2y"
+    description: "H\u1EA1t gi\u1ED1ng d\xE2u t\xE2y \u0111\u1ECF m\u1ECDng. Gieo
+      xu\u1ED1ng \u0111\u1EA5t b\u1EB1ng ph\xEDm [E] v\xE0 ch\u1EDD thu ho\u1EA1ch."
+    category: 0
+    spriteName: seed_strawberry
+    icon: {fileID: 4730858800348705948, guid: 7107dd58b8c923f4eaf45bc0036ef6ed, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 10
+    canBeBought: 1
+    buyPrice: 20
+    cropKey: strawberry
+    harvestItemId: produce_strawberry
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: seed_pumpkin
+    displayName: "H\u1EA1t B\xED Ng\xF4"
+    description: "H\u1EA1t gi\u1ED1ng b\xED ng\xF4 v\xE0ng \u01B0\u01A1m \u0111\u1EB7c
+      tr\u01B0ng c\u1EE7a v\xF9ng Little Dreamyland."
+    category: 0
+    spriteName: seed_pumpkin
+    icon: {fileID: -3040052357551105556, guid: 7107dd58b8c923f4eaf45bc0036ef6ed, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 15
+    canBeBought: 1
+    buyPrice: 30
+    cropKey: pumpkin
+    harvestItemId: produce_pumpkin
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: produce_carrot
+    displayName: "C\xE0 R\u1ED1t T\u01B0\u01A1i"
+    description: "C\u1EE7 c\xE0 r\u1ED1t gi\xF2n ng\u1ECDt v\u1EEBa thu ho\u1EA1ch.
+      C\xF3 th\u1EC3 b\xE1n l\u1EA5y Xu ho\u1EB7c s\u1EED d\u1EE5ng ngay."
+    category: 1
+    spriteName: produce_carrot
+    icon: {fileID: -1669470695553551931, guid: 7107dd58b8c923f4eaf45bc0036ef6ed, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 18
+    canBeBought: 0
+    buyPrice: 0
+    cropKey: 
+    harvestItemId: 
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: produce_cauliflower
+    displayName: "S\xFAp L\u01A1 Tr\u1EAFng"
+    description: "B\xF4ng s\xFAp l\u01A1 tr\u1EAFng tinh kh\xF4i, xanh t\u01B0\u01A1i
+      t\u1EEB th\u1EEDa ru\u1ED9ng nh\xE0."
+    category: 1
+    spriteName: produce_cauliflower
+    icon: {fileID: -1647607786073844970, guid: 7107dd58b8c923f4eaf45bc0036ef6ed, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 26
+    canBeBought: 0
+    buyPrice: 0
+    cropKey: 
+    harvestItemId: 
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: produce_strawberry
+    displayName: "D\xE2u T\xE2y \u0110\u1ECF"
+    description: "Tr\xE1i d\xE2u t\xE2y ch\xEDn m\u1ECDng th\u01A1m l\u1EEBng, \u0111\u1EB7c
+      s\u1EA3n \u0111\u01B0\u1EE3c y\xEAu th\xEDch nh\u1EA5t n\xF4ng tr\u1EA1i."
+    category: 1
+    spriteName: produce_strawberry
+    icon: {fileID: 5001897758405847026, guid: 7107dd58b8c923f4eaf45bc0036ef6ed, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 35
+    canBeBought: 0
+    buyPrice: 0
+    cropKey: 
+    harvestItemId: 
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: produce_pumpkin
+    displayName: "B\xED Ng\xF4 V\xE0ng"
+    description: "Qu\u1EA3 b\xED ng\xF4 tr\xF2n \u0111\u1EA7y \u0111\u1EB7n, n\xF4ng
+      s\u1EA3n gi\xE1 tr\u1ECB cao c\u1EE7a n\xF4ng tr\u1EA1i."
+    category: 1
+    spriteName: produce_pumpkin
+    icon: {fileID: -8996045757962361644, guid: 7107dd58b8c923f4eaf45bc0036ef6ed, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 50
+    canBeBought: 0
+    buyPrice: 0
+    cropKey: 
+    harvestItemId: 
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: mushroom
+    displayName: "N\u1EA5m R\u1EEBng"
+    description: "N\u1EA5m m\u1ECDc t\u1EF1 nhi\xEAn quanh b\xECa r\u1EEBng v\xE0
+      c\xE1c b\u1EE5i c\xE2y \u1EA9m \u01B0\u1EDBt."
+    category: 2
+    spriteName: mushroom
+    icon: {fileID: 1523232961260625450, guid: 66069def5f6a24e409d7990987b60de6, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 15
+    canBeBought: 0
+    buyPrice: 0
+    cropKey: 
+    harvestItemId: 
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: flowers_white
+    displayName: "Hoa C\xFAc Tr\u1EAFng"
+    description: "B\xF4ng hoa d\u1EA1i tr\u1EAFng tinh kh\xF4i h\xE1i \u0111\u01B0\u1EE3c
+      tr\xEAn \u0111\u1ED3ng c\u1ECF."
+    category: 2
+    spriteName: flowers_white
+    icon: {fileID: -412462219373783900, guid: 1310259b72076064896834def1d4f5b8, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 12
+    canBeBought: 0
+    buyPrice: 0
+    cropKey: 
+    harvestItemId: 
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: flowers_yellow
+    displayName: "Hoa C\xFAc V\xE0ng"
+    description: "B\xF4ng hoa c\xFAc v\xE0ng r\u1EF1c r\u1EE1 mang l\u1EA1i ni\u1EC1m
+      vui cho ng\u01B0\u1EDDi n\xF4ng d\xE2n."
+    category: 2
+    spriteName: flowers_yellow
+    icon: {fileID: -6829135976917621809, guid: 1310259b72076064896834def1d4f5b8, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 12
+    canBeBought: 0
+    buyPrice: 0
+    cropKey: 
+    harvestItemId: 
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: log
+    displayName: "Kh\xFAc G\u1ED7 S\u1ED3i"
+    description: "G\u1ED7 t\u1EF1 nhi\xEAn thu th\u1EADp khi ph\xE1t quang b\u1EE5i
+      c\xE2y tr\xEAn n\xF4ng tr\u1EA1i."
+    category: 3
+    spriteName: log
+    icon: {fileID: 4706875603367313408, guid: 66069def5f6a24e409d7990987b60de6, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 8
+    canBeBought: 0
+    buyPrice: 0
+    cropKey: 
+    harvestItemId: 
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  - id: rock_small
+    displayName: "\u0110\xE1 Cu\u1ED9i Nh\u1ECF"
+    description: "Vi\xEAn \u0111\xE1 cu\u1ED9i nh\u1EB7t t\u1EEB c\xE1c th\u1EEDa
+      \u0111\u1EA5t hoang quanh n\xF4ng tr\u1EA1i."
+    category: 3
+    spriteName: rock_small
+    icon: {fileID: -743903815743075200, guid: 66069def5f6a24e409d7990987b60de6, type: 3}
+    maxStack: 99
+    canBeSold: 1
+    sellPrice: 6
+    canBeBought: 0
+    buyPrice: 0
+    cropKey: 
+    harvestItemId: 
+    secondsPerStage: 3.5
+    minHarvestYield: 2
+    maxHarvestYield: 3
+  starterSlots:
+  - slotIndex: 0
+    itemId: seed_carrot
+    count: 6
+  - slotIndex: 1
+    itemId: seed_strawberry
+    count: 5
+  - slotIndex: 2
+    itemId: seed_pumpkin
+    count: 4
+  - slotIndex: 3
+    itemId: seed_cauliflower
+    count: 4
+  - slotIndex: 4
+    itemId: produce_carrot
+    count: 3
+  - slotIndex: 5
+    itemId: mushroom
+    count: 2
+  - slotIndex: 8
+    itemId: produce_strawberry
+    count: 4
+  - slotIndex: 9
+    itemId: produce_pumpkin
+    count: 2
+  - slotIndex: 10
+    itemId: log
+    count: 8
+  - slotIndex: 11
+    itemId: rock_small
+    count: 6
+  - slotIndex: 12
+    itemId: flowers_white
+    count: 3
+  - slotIndex: 13
+    itemId: flowers_yellow
+    count: 2
+  forageRules:
+  - sceneObjectName: mushroom
+    rewardItemId: mushroom
+    amount: 1
+  - sceneObjectName: rock_small
+    rewardItemId: rock_small
+    amount: 1
+  - sceneObjectName: flowers_white
+    rewardItemId: flowers_white
+    amount: 1
+  - sceneObjectName: flowers_yellow
+    rewardItemId: flowers_yellow
+    amount: 1
+  - sceneObjectName: log
+    rewardItemId: log
+    amount: 1
+  - sceneObjectName: bush
+    rewardItemId: log
+    amount: 1
+  - sceneObjectName: bush_round
+    rewardItemId: log
+    amount: 1
+  initialWorldPickups:
+  - itemId: mushroom
+    count: 1
+    position: {x: 8.5, y: 6.4}
+  - itemId: flowers_yellow
+    count: 1
+    position: {x: 12.2, y: 7.2}
+  - itemId: seed_carrot
+    count: 2
+    position: {x: 9.6, y: 8.5}
+  - itemId: log
+    count: 2
+    position: {x: 6.2, y: 5.2}
+  - itemId: produce_strawberry
+    count: 1
+    position: {x: 23.5, y: 10.2}
